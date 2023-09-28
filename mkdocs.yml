@@ -1,0 +1,57 @@
+site_name: "cellmap-schemas"
+site_url: https://janelia-cellmap.github.io/cellmap-schemas/
+site_author: Davis Bennett
+site_description: >-
+  Documentation for cellmap-schemas
+
+# Repository
+repo_name: janelia-cellmap/cellmap-schemas
+repo_url: https://github.com/janelia-cellmap/cellmap-schemas
+
+# Copyright
+copyright: Copyright &copy; 2016 - 2023 HHMI / Janelia
+
+theme:
+  name: material
+  palette: 
+  # Palette toggle for light mode
+  - scheme: default
+    toggle:
+      icon: material/brightness-7 
+      name: Switch to dark mode
+
+  # Palette toggle for dark mode
+  - scheme: slate
+    toggle:
+      icon: material/brightness-4
+      name: Switch to light mode
+
+nav:
+    - About: index.md
+    - API:
+      - annotation: api/annotation.md
+plugins:
+- mkdocstrings:
+    handlers:
+        python:
+          options:
+            docstring_style: numpy
+            members_order: source
+            separate_signature: true
+            filters: ["!^_"]
+            docstring_options:
+              ignore_init_summary: true
+            merge_init_into_class: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - toc:
+      baselevel: 2
+      toc_depth: 4
+      permalink: "#"
