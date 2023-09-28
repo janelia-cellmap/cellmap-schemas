@@ -1084,7 +1084,7 @@ annotation data in a multiscale representation.</p>
           </td>
           <td>
             <div class="doc-md-description">
-              <p>The version of this collection of metadata.</p>
+              <p>The version of this collection of metadata. Must be the string '0.1.0'.</p>
             </div>
           </td>
         </tr>
@@ -1186,9 +1186,9 @@ annotations. Optional.</p>
           </td>
           <td>
             <div class="doc-md-description">
-              <p>The names of the semantic classes that <strong>could</strong> be annotated in this crop, 
-given an annotation protocol. The set of these names may be larger than the set 
-of the names names of the classes that are actually annotated in the crop.</p>
+              <p>The names of the classes that are annotated in this crop. Each element from 
+<code>class_names</code> should also be the name of a Zarr group stored under the Zarr
+group that contains this metadata.</p>
             </div>
           </td>
         </tr>
