@@ -273,7 +273,7 @@ class CropGroupAttrs(GenericModel, Generic[TName]):
     Attributes
     ----------
     version: str
-        The version of this collection of metadata.
+        The version of this collection of metadata. Must be the string '0.1.0'.
     name: Optional[str]
         The name of the crop. Optional.
     description: Optional[str]
@@ -294,9 +294,9 @@ class CropGroupAttrs(GenericModel, Generic[TName]):
         A URI pointing to a description of the annotation protocol used to produce the
         annotations. Optional.
     class_names: list[str]
-        The names of the semantic classes that **could** be annotated in this crop, 
-        given an annotation protocol. The set of these names may be larger than the set 
-        of the names names of the classes that are actually annotated in the crop.
+        The names of the classes that are annotated in this crop. Each element from 
+        `class_names` should also be the name of a Zarr group stored under the Zarr
+        group that contains this metadata.
     """
     
     class Config:
