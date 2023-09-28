@@ -361,11 +361,11 @@ class CropGroup(GroupSpec):
         A dict describing all annotations contained within the group, which is nested
          under two outer dicts that define the namespace of this metadata, 
          i.e. `{'cellmap': {'annotation': {...}}}`. See 
-        [CropGroupAttrs][fibsem_tools.metadata.groundtruth.CropGroupAttrs] for details 
+        [CropGroupAttrs][cellmap_schemas.annotation.CropGroupAttrs] for details 
         of the structure of the metadata.
     members : Mapping[str, AnnotationGroup]
         A dict with keys that are strings and values that are instances of 
-        [AnnotationGroup][fibsem_tools.metadata.groundtruth.AnnotationGroup].
+        [AnnotationGroup][cellmap_schemas.annotation.AnnotationGroup].
 
     """
     attrs: CellmapWrapper[AnnotationWrapper[CropGroupAttrs]]
