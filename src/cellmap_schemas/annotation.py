@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import date
 from enum import Enum
-from typing import Dict, Generic, List, Literal, Mapping, Optional, TypeVar, Union
+from typing import Any, Dict, Generic, List, Literal, Mapping, Optional, Protocol, TypeVar, Union, runtime_checkable
 from pydantic_zarr import GroupSpec, ArraySpec
 from pydantic import BaseModel, Field, root_validator
 from pydantic.generics import GenericModel
@@ -13,7 +13,6 @@ class StrictBase(BaseModel):
 
 
 T = TypeVar("T")
-
 
 class CellmapWrapper(StrictBase, GenericModel, Generic[T]):
     """
@@ -67,6 +66,11 @@ class AnnotationWrapper(StrictBase, GenericModel, Generic[T]):
     """
     annotation: T
 
+def wrap_attributes(attributes: T) -> CellmapWrapper[AnnotationWrapper[T]]:
+    return CellmapWrapper(
+        cellmap=AnnotationWrapper(
+            annotation=attributes
+            ))
 
 class InstanceName(StrictBase):
     long: str
@@ -303,7 +307,7 @@ class CropGroupAttrs(GenericModel, Generic[TName]):
         frozen = True
         validate_assignment = True
     
-    version: Literal['0.1.0'] = Field(..., allow_mutation=False)
+    version: Literal['0.1.0'] = Field('0.1.0', allow_mutation=False)
     name: Optional[str]
     description: Optional[str]
     created_by: list[str]
