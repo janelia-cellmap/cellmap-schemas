@@ -15,6 +15,10 @@ pydantic-zarr = "^0.5.0"
 mkdocs-material = "^9.4.2"
 mkdocstrings = {extras = ["python"], version = "^0.23.0"}
 
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.4.2"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

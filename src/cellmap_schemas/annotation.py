@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import date
 from enum import Enum
-from typing import Dict, Generic, List, Literal, Mapping, Optional, TypeVar, Union
+from typing import Any, Dict, Generic, List, Literal, Mapping, Optional, Protocol, TypeVar, Union, runtime_checkable
 from pydantic_zarr import GroupSpec, ArraySpec
 from pydantic import BaseModel, Field, root_validator
 from pydantic.generics import GenericModel
@@ -13,7 +13,6 @@ class StrictBase(BaseModel):
 
 
 T = TypeVar("T")
-
 
 class CellmapWrapper(StrictBase, GenericModel, Generic[T]):
     """
@@ -67,6 +66,11 @@ class AnnotationWrapper(StrictBase, GenericModel, Generic[T]):
     """
     annotation: T
 
+def wrap_attributes(attributes: T) -> CellmapWrapper[AnnotationWrapper[T]]:
+    return CellmapWrapper(
+        cellmap=AnnotationWrapper(
+            annotation=attributes
+            ))
 
 class InstanceName(StrictBase):
     long: str
@@ -218,7 +222,7 @@ class AnnotationArrayAttrs(GenericModel, Generic[TName]):
 
     class_name: str
         The name of the semantic class annotated in this array.
-    histogram: Optional[Dict[Possibility, int]]
+    histogram: Dict[Possibility, int]
         The frequency of 'absent' and / or 'missing' values in the array data.
         The total number of elements in the array that represent "positive" examples can
         be calculated from this histogram -- take the number of elements in the array
@@ -230,7 +234,7 @@ class AnnotationArrayAttrs(GenericModel, Generic[TName]):
 
     class_name: TName
     # a mapping from values to frequencies
-    histogram: Optional[Dict[Possibility, int]]
+    histogram: Dict[Possibility, int]
     # a mapping from class names to values
     # this is array metadata because labels might disappear during downsampling
     annotation_type: AnnotationType
@@ -303,7 +307,7 @@ class CropGroupAttrs(GenericModel, Generic[TName]):
         frozen = True
         validate_assignment = True
     
-    version: Literal['0.1.0'] = Field(..., allow_mutation=False)
+    version: Literal['0.1.0'] = Field('0.1.0', allow_mutation=False)
     name: Optional[str]
     description: Optional[str]
     created_by: list[str]
