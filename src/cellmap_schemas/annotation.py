@@ -218,11 +218,11 @@ class AnnotationArrayAttrs(GenericModel, Generic[TName]):
 
     class_name: str
         The name of the semantic class annotated in this array.
-    histogram: Optional[Dict[Possibility, int]]
+    complement_counts: Optional[Dict[Possibility, int]]
         The frequency of 'absent' and / or 'missing' values in the array data.
         The total number of elements in the array that represent "positive" examples can
-        be calculated from this histogram -- take the number of elements in the array
-        minus the sum of the values in the histogram.
+        be calculated from these counts -- take the number of elements in the array
+        minus the sum of the values in this partial histogram.
     annotation_type: SemanticSegmentation | InstanceSegmentation
         The type of the annotation. Must be either an instance of SemanticSegmentation
         or an instance of InstanceSegmentation.
@@ -230,7 +230,7 @@ class AnnotationArrayAttrs(GenericModel, Generic[TName]):
 
     class_name: TName
     # a mapping from values to frequencies
-    histogram: Optional[Dict[Possibility, int]]
+    complement_counts: Optional[Dict[Possibility, int]]
     # a mapping from class names to values
     # this is array metadata because labels might disappear during downsampling
     annotation_type: AnnotationType
@@ -238,10 +238,10 @@ class AnnotationArrayAttrs(GenericModel, Generic[TName]):
     @root_validator()
     def check_encoding(cls, values):
         if (typ := values.get("type", False)) and (
-            hist := values.get("histogram", False)
+            counts := values.get("complement_counts", False)
         ):
-            # check that everything in the histogram is encoded
-            assert set(typ.encoding.keys()).issuperset((hist.keys())), "Oh no"
+            # check that everything in the complement_counts is encoded
+            assert set(typ.encoding.keys()).issuperset((counts.keys())), "Oh no"
 
         return values
 
