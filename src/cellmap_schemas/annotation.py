@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import date
 from enum import Enum
-from typing import Any, Dict, Generic, List, Literal, Mapping, Optional, Protocol, TypeVar, Union, runtime_checkable
+from typing import Any, Dict, Generic, List, Literal, Mapping, Optional, TypeVar, Union, runtime_checkable
 from pydantic_zarr import GroupSpec, ArraySpec
 from pydantic import BaseModel, Field, root_validator
 from pydantic.generics import GenericModel
@@ -307,7 +307,7 @@ class CropGroupAttrs(GenericModel, Generic[TName]):
         frozen = True
         validate_assignment = True
     
-    version: Literal['0.1.0'] = Field('0.1.0', allow_mutation=False)
+    version: Literal['0.1.1'] = Field('0.1.1', allow_mutation=False)
     name: Optional[str]
     description: Optional[str]
     created_by: list[str]
