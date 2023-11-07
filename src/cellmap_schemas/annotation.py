@@ -318,6 +318,16 @@ class CropGroupAttrs(GenericModel, Generic[TName]):
     protocol_uri: Optional[str]
     class_names: list[TName]
 
+    def dict(self, **kwargs):
+        out = {}
+        for key, value in super().dict(**kwargs).items():
+            if isinstance(value, date):
+                _value = str(value)
+            else:
+                _value = value
+            out[key] = _value
+        return out
+
 class AnnotationArray(ArraySpec):
     """
     The specification of a zarr array that contains data from an annotation, e.g. a 
@@ -374,6 +384,3 @@ class CropGroup(GroupSpec):
     """
     attrs: CellmapWrapper[AnnotationWrapper[CropGroupAttrs]]
     members: Mapping[str, AnnotationGroup]
-
-def json_schema():
-    print(CropGroup.schema_json(indent=2))
