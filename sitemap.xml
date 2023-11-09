@@ -2,12 +2,12 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://janelia-cellmap.github.io/cellmap-schemas/</loc>
-         <lastmod>2023-09-28</lastmod>
+         <lastmod>2023-11-09</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://janelia-cellmap.github.io/cellmap-schemas/api/annotation/</loc>
-         <lastmod>2023-09-28</lastmod>
+         <lastmod>2023-11-09</lastmod>
          <changefreq>daily</changefreq>
     </url>
 </urlset>

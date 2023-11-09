@@ -917,7 +917,7 @@ this is instance segmentation, and thus these values do not appear as keys in
           </td>
         </tr>
         <tr>
-          <td><code>histogram</code></td>
+          <td><code>complement_counts</code></td>
           <td>
                 <code><span title="typing.Optional">Optional</span>[<span title="typing.Dict">Dict</span>[<span title="cellmap_schemas.annotation.Possibility">Possibility</span>, int]]</code>
           </td>
@@ -925,8 +925,8 @@ this is instance segmentation, and thus these values do not appear as keys in
             <div class="doc-md-description">
               <p>The frequency of 'absent' and / or 'missing' values in the array data.
 The total number of elements in the array that represent "positive" examples can
-be calculated from this histogram -- take the number of elements in the array
-minus the sum of the values in the histogram.</p>
+be calculated from these counts -- take the number of elements in the array
+minus the sum of the values in this partial histogram.</p>
             </div>
           </td>
         </tr>
