@@ -25,7 +25,7 @@ def test_cropgroup():
     for array, class_name in zip(arrays,class_names):
         ann_array_attrs = AnnotationArrayAttrs[ClassNamesT](
                 class_name=class_name,
-                histogram={'absent': 0},
+                complement_counts={'absent': 0},
                 annotation_type=ann_type)
         ann_array = AnnotationArray.from_array(
             array, attrs=wrap_attributes(ann_array_attrs))
@@ -35,9 +35,12 @@ def test_cropgroup():
                 annotation_type=ann_type
                 )
 
+        # check that an extra attribute is OK
         ann_group = AnnotationGroup(
             members={'s0': ann_array},
-            attrs=wrap_attributes(ann_group_attrs))
+            attrs={
+                **wrap_attributes(ann_group_attrs).dict(), 
+                **{'foo': 10}})
         ann_groups[class_name] = ann_group
     
     crop_group = CropGroup(

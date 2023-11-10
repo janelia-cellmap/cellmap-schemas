@@ -14,7 +14,7 @@ class StrictBase(BaseModel):
 
 T = TypeVar("T")
 
-class CellmapWrapper(StrictBase, GenericModel, Generic[T]):
+class CellmapWrapper(GenericModel, Generic[T]):
     """
     A generic pydantic model that wraps the type `T` under the namespace "cellmap"
 
@@ -41,7 +41,7 @@ class CellmapWrapper(StrictBase, GenericModel, Generic[T]):
     cellmap: T
 
 
-class AnnotationWrapper(StrictBase, GenericModel, Generic[T]):
+class AnnotationWrapper(GenericModel, Generic[T]):
     """
     A generic pydantic model that wraps the type `T` under the namespace "annotation"
 
