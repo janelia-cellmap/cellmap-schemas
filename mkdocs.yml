@@ -28,8 +28,13 @@ theme:
 
 nav:
     - About: index.md
+    - Cellmap cloud storage conventions: cellmap-conventions/s3-overview.md
+    - Development: development.md
     - API:
-      - annotation: api/annotation.md
+      - image metadata:
+        - annotation hierarchy: api/annotation.md
+        - neuroglancer_n5 hierarchy: api/neuroglancer_n5.md
+        - cosem hierarchy: api/cosem.md
 plugins:
 - mkdocstrings:
     handlers:
