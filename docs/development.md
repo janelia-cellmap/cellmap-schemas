@@ -5,10 +5,7 @@
 git clone https://github.com/janelia-cellmap/cellmap-schemas.git
 ```
 
-2. Navigate to that directory and install dependencies. This project uses the [`poetry`](https://python-poetry.org/) package manager.
-```
-poetry install
-```
+2. Navigate to the project directory and install dependencies. This project uses the [`poetry`](https://python-poetry.org/) package manager. After installing `poetry`, run `poetry install`.
 
 2. Make changes.
 
@@ -17,9 +14,6 @@ poetry install
 pytest tests
 ```
 
-4. Preview documentation changes with `mkdocs`:
-```
-mkdocs serve --watch src
-```
+4. This project uses `mkdocs` for documentation. Run `mkdocs serve --watch src` to preview rendered documentation.
 
 5. Submit a pull request with your changes to the main code branch on [github](https://github.com/janelia-cellmap/cellmap-schemas).

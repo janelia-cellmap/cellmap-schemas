@@ -2,7 +2,7 @@ from typing import Union
 import click
 from pydantic_zarr import ArraySpec, GroupSpec
 from pydantic import ValidationError
-from cellmap_schemas.cosem import COSEMMultiscaleGroup
+from cellmap_schemas.cosem import MultiscaleGroup
 import zarr
 from rich.console import Console
 from rich.traceback import install
@@ -38,7 +38,7 @@ def validate_cli(store_path: str, node_path: str, group_type: str):
 	if group_type == 'cosem_multiscale_group':
 		store = zarr.N5FSStore(store_path)
 		node = zarr.open(store, path=node_path, mode='r')
-		validate(COSEMMultiscaleGroup, node, console)
+		validate(MultiscaleGroup, node, console)
 	else:
 		msg = f'group_type parameter "{group_type}" was not recognized.\n' f'Available options:'
 		console.print(msg)

@@ -9,7 +9,7 @@ class STTransform(BaseModel):
 	Representation of an N-dimensional scaling -> translation transform for labelled
 	axes with units.
 
-	This metadata was created within Cellmap (then called COSEM) because existing
+	This metadata was created within COSEM/Cellmap at a time when existing
 	spatial metadata conventions for images stored in chunked file formats
 	could not express a name, translation, or unit per axis.
 
@@ -89,7 +89,8 @@ class ScaleMetadata(BaseModel):
 	"""
 	Metadata for an entry in `MultiscaleMetadata.datasets`, which is group metadata that
 	contains a list of references to arrays. Structurally, `ScaleMetadata` is the same
-	as `ArrayMetadata`, but with an additional field, `path`.
+	as [`ArrayMetadata`][cellmap_schemas.cosem.ArrayMetadata],
+	but with an additional field, `path`.
 
 	Attributes
 	----------
@@ -107,18 +108,21 @@ class ScaleMetadata(BaseModel):
 
 class MultiscaleMetadata(BaseModel):
 	"""
-	Multiscale metadata used by Cellmap for datasets published on OpenOrganelle.
-	Inspired by this discussion: https://github.com/zarr-developers/zarr-specs/issues/50
+	Multiscale metadata used by COSEM/Cellmap for datasets published on OpenOrganelle.
+	Inspired by [this discussion](https://github.com/zarr-developers/zarr-specs/issues/50).
+
+	This metadata should be present in the attributes of an N5 group under the key
+	`multiscales`.
 
 	Attributes
 	----------
-
 	name: Optional[str]
 	    A name for this multiscale group. Rarely used.
 	datasets: Sequence[ScaleMetadata]
-	    A sequence of `ScaleMetadata` elements that refer to the arrays contained inside
-	    the group bearing this metadata. Each element of `datasets` references an array
-	    contained within the group that bears this metadata. These references contain
+	    A sequence of [`ScaleMetadata`][cellmap_schemas.cosem.ScaleMetadata] elements
+	        that refer to the arrays contained inside the group bearing this metadata.
+	        Each element of `MultiscaleMetadata.datasets` references an array contained
+	        within the group that bears this metadata. These references contain
 	    the name of the array, under the `ScaleMeta.path` attribute, and the coordinate
 	    metadata for the array, under the `ScaleMeta.transform` attribute.
 	"""
@@ -129,9 +133,10 @@ class MultiscaleMetadata(BaseModel):
 
 class GroupMetadata(NeuroglancerN5GroupMetadata):
 	"""
-	Multiscale metadata used by Cellmap for multiscale datasets saved in N5 groups.
+	Multiscale metadata used by COSEM/Cellmap for multiscale datasets saved in N5 groups.
 
-	Note that this class inherits attributes from `NeuroglancerN5GroupMetadata`.
+	Note that this class inherits attributes from
+	[`NeuroglancerN5GroupMetadata`][cellmap_schemas.neuroglancer_n5.NeuroglancerN5GroupMetadata].
 	Those attributes are necessary to ensure that the N5 group can be displayed properly
 	by the Neuroglancer visualization tool.
 
@@ -164,13 +169,19 @@ class MultiscaleArray(ArraySpec):
 	attrs: ArrayMetadata
 
 
-class COSEMMultiscaleGroup(GroupSpec):
+class MultiscaleGroup(GroupSpec):
 	"""
-	A model of a multiscale N5 group used by COSEM/Cellmap for data on OpenOrganelle.
+	A model of a multiscale N5 group used by COSEM/Cellmap for data presented on
+	OpenOrganelle.
 
 	Attributes
 	----------
-
+	attrs: GroupMetadata
+	    Metadata that conveys that this is a multiscale group, and the coordinate
+	        information of the arrays it contains.
+	members: dict[str, MultiscaleArray]
+	    The members of this group must be instances of
+	        [`MultiscaleArray`][cellmap_schemas.cosem.MultiscaleArray]
 
 	"""
 
