@@ -1,5 +1,5 @@
-from typing import Sequence
-from pydantic import BaseModel, PositiveInt, validator
+from typing import Any, Dict, Sequence
+from pydantic import BaseModel, PositiveInt, root_validator, validator
 from pydantic_zarr.core import GroupSpec, ArraySpec
 import zarr
 
@@ -39,10 +39,10 @@ class PixelResolution(BaseModel):
 	----------
 
 	dimensions: Sequence[float]
-	    The distance, in units given by the `unit` attribute, between samples, per axis.
-	    Conventionally referred to as the "resolution" of the image.
+	        The distance, in units given by the `unit` attribute, between samples, per axis.
+	        Conventionally referred to as the "resolution" of the image.
 	unit: str
-	    The physical unit for the `dimensions` attribute.
+	        The physical unit for the `dimensions` attribute.
 	"""  # noqa: E501
 
 	dimensions: Sequence[float]
@@ -50,7 +50,7 @@ class PixelResolution(BaseModel):
 
 
 # todo: validate argument lengths
-class NeuroglancerN5GroupMetadata(BaseModel):
+class GroupMetadata(BaseModel):
 	"""
 	Metadata to enable displaying an N5 group containing several datasets
 	as a multiresolution dataset in neuroglancer, based on
@@ -65,19 +65,19 @@ class NeuroglancerN5GroupMetadata(BaseModel):
 	Attributes
 	----------
 	axes : Sequence[str]
-	    The names of the axes of the data
+	        The names of the axes of the data
 	units : Sequence[str]
-	    The units for the axes of the data
+	        The units for the axes of the data
 	scales : Sequence[Sequence[PositiveInt]]
-	    The relative scales of each axis. E.g., if this metadata describes a 3D dataset
-	    that was downsampled isotropically by 2 along each axis over two iterations,
-	    resulting in 3 total arrays, then `scales` would be the list
-	    `[[1,1,1], [2,2,2], [4,4,4]]`.
+	        The relative scales of each axis. E.g., if this metadata describes a 3D dataset
+	        that was downsampled isotropically by 2 along each axis over two iterations,
+	        resulting in 3 total arrays, then `scales` would be the list
+	        `[[1,1,1], [2,2,2], [4,4,4]]`.
 	pixelResolution: PixelResolution
-	    An instance of `PixelResolution` that specifies the interval, in physical units,
-	    between adjacent samples, per axis. Note that `PixelResolution` also defines a
-	    `unit` attribute, which is redundant with the `units` attribute defined on this
-	    class.
+	        An instance of `PixelResolution` that specifies the interval, in physical units,
+	        between adjacent samples, per axis. Note that `PixelResolution` also defines a
+	        `unit` attribute, which is redundant with the `units` attribute defined on this
+	        class.
 	"""  # noqa: E501
 
 	axes: Sequence[str]
@@ -85,8 +85,47 @@ class NeuroglancerN5GroupMetadata(BaseModel):
 	scales: Sequence[Sequence[PositiveInt]]
 	pixelResolution: PixelResolution
 
+	@root_validator
+	def check_dimensionality(cls, values: Dict[str, Any]):
+		axes = values.get('axes')
+		units = values.get('units')
+		scales = values.get('scales')
+		pixr = values.get('pixelResolution')
+		if not len(axes) == len(units):
+			raise ValueError(
+				f'The number of elements in `axes` ({len(axes)}) does not'
+				f'match the number of elements in `units` ({len(units)}).'
+			)
+		for idx, scale in enumerate(scales):
+			if idx == 0 and not all(s == 1 for s in scale):
+				raise ValueError(
+					f'The first element of `scales` must be all 1s. Got {scale}' ' instead.'
+				)
+			if not len(scale) == len(axes):
+				raise ValueError(
+					f'The number of elements in `axes` ({len(axes)}) does not'
+					f'match the number of elements in the {idx}th element in `scales`'
+					f'({len(units)}).'
+				)
 
-class NeuroglancerN5Group(GroupSpec):
+		if not len(pixr.dimensions) == len(axes):
+			raise ValueError(
+				f'The number of elements in `axes` ({len(axes)})'
+				'does not match the number of elements in `pixelResolution.dimensions`'
+				f'({len(pixr.dimensions)})'
+			)
+
+		for idx, u in enumerate(units):
+			if not u == pixr.unit:
+				raise ValueError(
+					f'The {idx}th element of `units` ({u}) does not '
+					f'match `pixelResolution.unit` ({pixr.unit})'
+				)
+
+		return values
+
+
+class MultiscaleGroup(GroupSpec):
 	"""
 	A `GroupSpec` representing the structure of a N5 group with
 	neuroglancer-compatible structure and metadata.
@@ -94,16 +133,16 @@ class NeuroglancerN5Group(GroupSpec):
 	Attributes
 	----------
 
-	attrs : NeuroglancerN5GroupMetadata
-	    The metadata required to convey to neuroglancer that this group represents a
-	    multiscale image.
+	attrs : GroupMetadata
+	        The metadata required to convey to neuroglancer that this group represents a
+	        multiscale image.
 	members : Dict[str, Union[GroupSpec, ArraySpec]]
-	    The members of this group. Arrays must be consistent with the `scales` attribute
-	    in `attrs`.
+	        The members of this group. Arrays must be consistent with the `scales` attribute
+	        in `attrs`.
 
 	"""
 
-	attrs: NeuroglancerN5GroupMetadata
+	attrs: GroupMetadata
 
 	@validator('members')
 	def validate_members(cls, v: dict[str, ArraySpec]) -> dict[str, ArraySpec]:
@@ -116,7 +155,7 @@ class NeuroglancerN5Group(GroupSpec):
 	@classmethod
 	def from_zarr(cls, node: zarr.Group):
 		"""
-		Create an instance of `NeuroglancerN5Group` from a Zarr group. This method will
+		Create an instance of `MultiscaleGroup` from a Zarr group. This method will
 		raise an exception if the Zarr group is not backed by one of the N5-compatible
 		stores (`zarr.N5Store`, `zarr.N5FSStore`).
 
@@ -124,21 +163,19 @@ class NeuroglancerN5Group(GroupSpec):
 		----------
 
 		node: zarr.Group
-		    A Zarr group with attributes and members compatible with
-		    `NeuroglancerN5Group`.
+		        A Zarr group. Should be backed by N5-formatted storage.
 
 		Returns
 		-------
 
-		An instance of `NeuroglancerN5Group`.
+		An instance of `MultiscaleGroup`.
 		"""
 		if not isinstance(node.store, (zarr.N5FSStore, zarr.N5Store)):
-			msg = (
+			raise ValueError(
 				f'{cls.__name__} must be using an N5-compatible storage backend, '
 				f'namely zarr.N5FSStore or zarr.N5Store. Got {node.store.__class__} '
 				'instead'
 			)
-			raise ValueError(msg)
 		else:
 			base = GroupSpec.from_zarr(node).dict()
 			return cls(**base)
@@ -157,7 +194,7 @@ def check_scale_level_name(name: str) -> bool:
 	----------
 
 	name: str
-	    The name to check.
+	        The name to check.
 
 	Returns
 	-------

@@ -1,7 +1,7 @@
-from typing import Dict, Literal, Optional, Sequence, Union
+from typing import Any, Dict, Literal, Optional, Sequence, Union
 from pydantic_zarr import GroupSpec, ArraySpec
-from pydantic import BaseModel, root_validator
-from cellmap_schemas.neuroglancer_n5 import NeuroglancerN5GroupMetadata, PixelResolution
+from pydantic import BaseModel, conlist, root_validator
+from cellmap_schemas.multiscale import neuroglancer_n5
 
 
 class STTransform(BaseModel):
@@ -56,14 +56,13 @@ class STTransform(BaseModel):
 		units = values.get('units')
 		translate = values.get('translate')
 		if not len(axes) == len(units) == len(translate) == len(scale):
-			msg = (
+			raise ValueError(
 				'The length of all arguments must match. '
 				f'len(axes) = {len(axes)}, '
 				f'len(units) = {len(units)}, '
 				f'len(translate) = {len(translate)}, '
 				f'len(scale) = {len(scale)}.'
 			)
-			raise ValueError(msg)
 		return values
 
 
@@ -75,14 +74,50 @@ class ArrayMetadata(BaseModel):
 	----------
 	transform: STTransform
 	    A description of axis names, units, scaling, and translation for this array.
-	pixelResolution: PixelResolution
+	pixelResolution: neuroglancer_n5.PixelResolution
 	    A description of the scaling and unit for this array. This metadata redundantly
 	    expresses a strict subset of the information expressed by `transform`,
 	    but it is necessary for a family of visualization tools (e.g., Neuroglancer).
 	"""
 
-	pixelResolution: PixelResolution
+	pixelResolution: neuroglancer_n5.PixelResolution
 	transform: STTransform
+
+	@root_validator
+	def check_dimensionality(cls, values: Dict[str, Any]):
+		"""
+		Check that `pixelResolution` and `transform` are consistent.
+		"""
+		# guard against pydantic 1-ism where sometimes the root validator doesn't
+		# provide all the attributes in `values`
+		if 'pixelResolution' in values and 'transform' in values:
+			pixr: neuroglancer_n5.PixelResolution = values.get('pixelResolution')
+			tx: STTransform = values.get('transform')
+
+			if not all(pixr.unit == u for u in tx.units):
+				raise ValueError(
+					f'The `pixelResolution` and `transform` attributes are incompatible: '
+					f'the `unit` attribute of `pixelResolution` ({pixr.unit}) was not '
+					f'identical to ever element in `transform.units` ({tx.units}).'
+				)
+
+			if tx.order == 'C':
+				if pixr.dimensions != tx.scale[::-1]:
+					raise ValueError(
+						'The `pixelResolution` and `transform` attributes are incompatible: '
+						f'the `pixelResolution.dimensions` attribute ({pixr.dimensions}) '
+						'should match the reversed `transform.scale` attribute '
+						f'({tx.scale[::-1]}).'
+					)
+			else:
+				if pixr.dimensions != tx.scale:
+					raise ValueError(
+						'The `pixelResolution` and `transform` attributes are incompatible: '
+						f'the `pixelResolution.dimensions` attribute ({pixr.dimensions}) '
+						'should match the `transform.scale` attribute '
+						f'({tx.scale}).'
+					)
+		return values
 
 
 class ScaleMetadata(BaseModel):
@@ -131,17 +166,17 @@ class MultiscaleMetadata(BaseModel):
 	datasets: Sequence[ScaleMetadata]
 
 
-class GroupMetadata(NeuroglancerN5GroupMetadata):
+class GroupMetadata(neuroglancer_n5.GroupMetadata):
 	"""
 	Multiscale metadata used by COSEM/Cellmap for multiscale datasets saved in N5 groups.
 
 	Note that this class inherits attributes from
-	[`NeuroglancerN5GroupMetadata`][cellmap_schemas.neuroglancer_n5.NeuroglancerN5GroupMetadata].
+	[`neuroglancer_n5.GroupMetadata`][cellmap_schemas.neuroglancer_n5.GroupMetadata].
 	Those attributes are necessary to ensure that the N5 group can be displayed properly
 	by the Neuroglancer visualization tool.
 
 	Additional attributes are added by this class in to express properties of the
-	multiscale group that cannot be expressed by `NeuroglancerN5Metadata`. However,
+	multiscale group that cannot be expressed by `neuroglancer_n5.GroupMetadata`. However,
 	this results in some redundancy, as the total metadata describes several properties
 	of the data multiple times (e.g., the resolution of the images is conveyed
 	redundantly, as are the axis names).
@@ -153,7 +188,7 @@ class GroupMetadata(NeuroglancerN5GroupMetadata):
 	    images at different levels of detail.
 	"""
 
-	multiscales: list[MultiscaleMetadata]
+	multiscales: conlist(MultiscaleMetadata, max_items=1, min_items=1)
 
 
 class MultiscaleArray(ArraySpec):
@@ -167,6 +202,24 @@ class MultiscaleArray(ArraySpec):
 	"""
 
 	attrs: ArrayMetadata
+
+	@root_validator
+	def check_consistent_transform(cls, values: Dict[str, Any]):
+		"""
+		Check that the spatial metadata in the attributes of this array are consistent
+		with the properties of the array.
+		"""
+
+		tx: STTransform = values.get('attrs').transform
+		shape: list[int] = values.get('shape')
+		if not len(shape) == len(tx.axes):
+			raise ValueError(
+				'The `shape` and `attrs.transform` attributes are incompatible: '
+				f'The length of `shape` ({len(shape)}) must match the length of '
+				f'`transform.axes` ({len(tx.axes)}) '
+			)
+
+		return values
 
 
 class MultiscaleGroup(GroupSpec):
@@ -187,3 +240,40 @@ class MultiscaleGroup(GroupSpec):
 
 	attrs: GroupMetadata
 	members: dict[str, MultiscaleArray]
+
+	@root_validator
+	def check_arrays_consistent(cls, values: dict[str, Any]):
+		"""
+		Check that the arrays referenced by `GroupMetadata` are consist with the
+		arrays in `members`.
+		"""
+
+		multiscales: MultiscaleMetadata = values.get('attrs').multiscales[0]
+		members: dict[str, Union[GroupSpec, ArraySpec]] = values.get('members')
+		for idx, element in enumerate(multiscales.datasets):
+			if element.path not in members:
+				raise ValueError(
+					'The `attrs` and `members` attributes are incompatible: '
+					f'`attrs.multiscales[0].datasets[{idx}].path` refers to an array '
+					f'named {element.path} that does not exist in `members`.'
+				)
+			else:
+				if isinstance(members[element.path], GroupSpec):
+					raise ValueError(
+						'The `attrs` and `members` attributes are incompatible: '
+						f'`attrs.multiscales[0].datasets[{idx}].path` refers to an array '
+						f'named {element.path}, but `members[{element.path}]` '
+						'describes a group.'
+					)
+				else:
+					# check that the array has a transform that matches the one in
+					# multiscale metadata
+					member_array: MultiscaleArray = members[element.path]
+					if member_array.attrs.transform != element.transform:
+						raise ValueError(
+							'The `attrs` and `members` attributes are incompatible: '
+							f'`attrs.multiscales[0].datasets[{idx}].transform` '
+							'does not match the `attrs.transform` attribute of the '
+							f'correspdonding array described in members[{element.path}]'
+						)
+		return values
