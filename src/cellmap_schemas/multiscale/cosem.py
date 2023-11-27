@@ -209,15 +209,15 @@ class MultiscaleArray(ArraySpec):
 		Check that the spatial metadata in the attributes of this array are consistent
 		with the properties of the array.
 		"""
-
-		tx: STTransform = values.get('attrs').transform
-		shape: list[int] = values.get('shape')
-		if not len(shape) == len(tx.axes):
-			raise ValueError(
-				'The `shape` and `attrs.transform` attributes are incompatible: '
-				f'The length of `shape` ({len(shape)}) must match the length of '
-				f'`transform.axes` ({len(tx.axes)}) '
-			)
+		if 'attrs' in values:
+			tx: STTransform = values.get('attrs').transform
+			shape: list[int] = values.get('shape')
+			if not len(shape) == len(tx.axes):
+				raise ValueError(
+					'The `shape` and `attrs.transform` attributes are incompatible: '
+					f'The length of `shape` ({len(shape)}) must match the length of '
+					f'`transform.axes` ({len(tx.axes)}) '
+				)
 
 		return values
 
@@ -248,32 +248,34 @@ class MultiscaleGroup(GroupSpec):
 		arrays in `members`.
 		"""
 
-		multiscales: MultiscaleMetadata = values.get('attrs').multiscales[0]
-		members: dict[str, Union[GroupSpec, ArraySpec]] = values.get('members')
-		for idx, element in enumerate(multiscales.datasets):
-			if element.path not in members:
-				raise ValueError(
-					'The `attrs` and `members` attributes are incompatible: '
-					f'`attrs.multiscales[0].datasets[{idx}].path` refers to an array '
-					f'named {element.path} that does not exist in `members`.'
-				)
-			else:
-				if isinstance(members[element.path], GroupSpec):
+		# weird defense against pydantic 1.x not including complete data in values
+		if 'attrs' in values:
+			multiscales: MultiscaleMetadata = values.get('attrs').multiscales[0]
+			members: dict[str, Union[GroupSpec, ArraySpec]] = values.get('members')
+			for idx, element in enumerate(multiscales.datasets):
+				if element.path not in members:
 					raise ValueError(
 						'The `attrs` and `members` attributes are incompatible: '
 						f'`attrs.multiscales[0].datasets[{idx}].path` refers to an array '
-						f'named {element.path}, but `members[{element.path}]` '
-						'describes a group.'
+						f'named {element.path} that does not exist in `members`.'
 					)
 				else:
-					# check that the array has a transform that matches the one in
-					# multiscale metadata
-					member_array: MultiscaleArray = members[element.path]
-					if member_array.attrs.transform != element.transform:
+					if isinstance(members[element.path], GroupSpec):
 						raise ValueError(
 							'The `attrs` and `members` attributes are incompatible: '
-							f'`attrs.multiscales[0].datasets[{idx}].transform` '
-							'does not match the `attrs.transform` attribute of the '
-							f'correspdonding array described in members[{element.path}]'
+							f'`attrs.multiscales[0].datasets[{idx}].path` refers to an array '
+							f'named {element.path}, but `members[{element.path}]` '
+							'describes a group.'
 						)
+					else:
+						# check that the array has a transform that matches the one in
+						# multiscale metadata
+						member_array: MultiscaleArray = members[element.path]
+						if member_array.attrs.transform != element.transform:
+							raise ValueError(
+								'The `attrs` and `members` attributes are incompatible: '
+								f'`attrs.multiscales[0].datasets[{idx}].transform` '
+								'does not match the `attrs.transform` attribute of the '
+								f'correspdonding array described in members[{element.path}]'
+							)
 		return values
