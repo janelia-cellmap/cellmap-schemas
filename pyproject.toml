@@ -21,12 +21,17 @@ mkdocstrings = {extras = ["python"], version = "^0.23.0"}
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4.2"
 
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.7.1"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-vld8 = 'cellmap_schemas.cli:validate_cli'
+inspect = 'cellmap_schemas.cli:inspect_cli'
+check = 'cellmap_schemas.cli:validate_cli'
 
 [tool.ruff]
 line-length = 100

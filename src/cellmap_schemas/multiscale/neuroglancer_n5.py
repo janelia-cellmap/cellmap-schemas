@@ -125,7 +125,7 @@ class GroupMetadata(BaseModel):
 		return values
 
 
-class MultiscaleGroup(GroupSpec):
+class Group(GroupSpec):
 	"""
 	A `GroupSpec` representing the structure of a N5 group with
 	neuroglancer-compatible structure and metadata.
@@ -143,19 +143,43 @@ class MultiscaleGroup(GroupSpec):
 	"""
 
 	attrs: GroupMetadata
+	members: dict[str, ArraySpec]
+
+	@root_validator
+	def check_scales(cls, values: dict[str, Any]):
+		if 'attrs' in values and 'members' in values:
+			scales = values.get('attrs').scales
+			members = values.get('members')
+
+			for level in range(len(scales)):
+				name_expected = f's{level}'
+				if name_expected not in members:
+					raise ValueError(
+						f'Expected to find {name_expected} in `members` but it is missing. '
+						f'members[{name_expected}] should be an array.'
+					)
+				elif not isinstance(members[name_expected], ArraySpec):
+					raise ValueError(
+						f'members[{name_expected}] should be an array. Got {type(members[name_expected])} instead.'
+					)
+
+		return values
 
 	@validator('members')
 	def validate_members(cls, v: dict[str, ArraySpec]) -> dict[str, ArraySpec]:
 		# check that the names of the arrays are s0, s1, s2, etc
 		for key, spec in v.items():
 			assert check_scale_level_name(key)
+		# check that dtype is uniform
 		assert len(set(a.dtype for a in v.values())) == 1
+		# check that dimensionality is uniform
+		assert len(set(len(a.shape) for a in v.values())) == 1
 		return v
 
 	@classmethod
 	def from_zarr(cls, node: zarr.Group):
 		"""
-		Create an instance of `MultiscaleGroup` from a Zarr group. This method will
+		Create an instance of `Group` from a Zarr group. This method will
 		raise an exception if the Zarr group is not backed by one of the N5-compatible
 		stores (`zarr.N5Store`, `zarr.N5FSStore`).
 
@@ -168,7 +192,7 @@ class MultiscaleGroup(GroupSpec):
 		Returns
 		-------
 
-		An instance of `MultiscaleGroup`.
+		An instance of `Group`.
 		"""
 		if not isinstance(node.store, (zarr.N5FSStore, zarr.N5Store)):
 			raise ValueError(

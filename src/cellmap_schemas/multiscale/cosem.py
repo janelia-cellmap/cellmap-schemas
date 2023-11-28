@@ -84,7 +84,7 @@ class ArrayMetadata(BaseModel):
 	transform: STTransform
 
 	@root_validator
-	def check_dimensionality(cls, values: Dict[str, Any]):
+	def check_dimensionality(cls, values: dict[str, Any]):
 		"""
 		Check that `pixelResolution` and `transform` are consistent.
 		"""
@@ -171,12 +171,12 @@ class GroupMetadata(neuroglancer_n5.GroupMetadata):
 	Multiscale metadata used by COSEM/Cellmap for multiscale datasets saved in N5 groups.
 
 	Note that this class inherits attributes from
-	[`neuroglancer_n5.GroupMetadata`][cellmap_schemas.neuroglancer_n5.GroupMetadata].
+	[`neuroglancer_n5.GroupMetadata`][cellmap_schemas.multiscale.neuroglancer_n5.GroupMetadata].
 	Those attributes are necessary to ensure that the N5 group can be displayed properly
 	by the Neuroglancer visualization tool.
 
 	Additional attributes are added by this class in to express properties of the
-	multiscale group that cannot be expressed by `neuroglancer_n5.GroupMetadata`. However,
+	multiscale group that cannot be expressed by [`neuroglancer_n5.GroupMetadata`][cellmap_schemas.multiscale.neuroglancer_n5.GroupMetadata]. However,
 	this results in some redundancy, as the total metadata describes several properties
 	of the data multiple times (e.g., the resolution of the images is conveyed
 	redundantly, as are the axis names).
@@ -191,7 +191,7 @@ class GroupMetadata(neuroglancer_n5.GroupMetadata):
 	multiscales: conlist(MultiscaleMetadata, max_items=1, min_items=1)
 
 
-class MultiscaleArray(ArraySpec):
+class Array(ArraySpec):
 	"""
 	The metadata for a single scale level of a multiscale group.
 
@@ -222,7 +222,7 @@ class MultiscaleArray(ArraySpec):
 		return values
 
 
-class MultiscaleGroup(GroupSpec):
+class Group(GroupSpec):
 	"""
 	A model of a multiscale N5 group used by COSEM/Cellmap for data presented on
 	OpenOrganelle.
@@ -234,12 +234,12 @@ class MultiscaleGroup(GroupSpec):
 	        information of the arrays it contains.
 	members: dict[str, MultiscaleArray]
 	    The members of this group must be instances of
-	        [`MultiscaleArray`][cellmap_schemas.cosem.MultiscaleArray]
+	        [`MultiscaleArray`][cellmap_schemas.mulitscale.cosem.Array]
 
 	"""
 
 	attrs: GroupMetadata
-	members: dict[str, MultiscaleArray]
+	members: dict[str, Array]
 
 	@root_validator
 	def check_arrays_consistent(cls, values: dict[str, Any]):
@@ -250,6 +250,7 @@ class MultiscaleGroup(GroupSpec):
 
 		# weird defense against pydantic 1.x not including complete data in values
 		if 'attrs' in values:
+			axes = values.get('attrs').axes
 			multiscales: MultiscaleMetadata = values.get('attrs').multiscales[0]
 			members: dict[str, Union[GroupSpec, ArraySpec]] = values.get('members')
 			for idx, element in enumerate(multiscales.datasets):
@@ -270,7 +271,7 @@ class MultiscaleGroup(GroupSpec):
 					else:
 						# check that the array has a transform that matches the one in
 						# multiscale metadata
-						member_array: MultiscaleArray = members[element.path]
+						member_array: Array = members[element.path]
 						if member_array.attrs.transform != element.transform:
 							raise ValueError(
 								'The `attrs` and `members` attributes are incompatible: '
@@ -278,4 +279,21 @@ class MultiscaleGroup(GroupSpec):
 								'does not match the `attrs.transform` attribute of the '
 								f'correspdonding array described in members[{element.path}]'
 							)
+						if element.transform.order == 'F':
+							if element.transform.axes != axes:
+								raise ValueError(
+									'The `attrs` and `members` attributes are incompatible: '
+									f'`attrs.multiscales[0].datasets[{idx}].transform.axes`, '
+									f'indexed according to `attrs.multiscales[0].datasets[{idx}].transform.order` ({element.transform.order}) '
+									f'is {element.transform.axes},  which does not match `attrs.axes` ({axes}).'
+								)
+						else:
+							if element.transform.axes != axes[::-1]:
+								raise ValueError(
+									'The `attrs` and `members` attributes are incompatible: '
+									f'`attrs.multiscales[0].datasets[{idx}].transform.axes`, '
+									f'indexed according to `attrs.multiscales[0].datasets[{idx}].transform.order` ({element.transform.order}) '
+									f'is {element.transform.axes[::-1]},  which does not match `attrs.axes` ({axes}).'
+								)
+
 		return values
