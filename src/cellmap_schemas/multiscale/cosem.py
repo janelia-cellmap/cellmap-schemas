@@ -1,3 +1,12 @@
+"""
+This module contains Pydantic models for "COSEM-flavored" multiscale images. These images
+are  stored in the [N5](https://github.com/saalfeldlab/n5) format, and use a layout / metadata
+that's compatible with the [Neuroglancer](https://github.com/google/neuroglancer) visualization tool.
+
+Note that the hierarchy convention modeled here will likely be superceded by conventions defined
+in the [OME-NGFF](https://ngff.openmicroscopy.org/) specification.
+"""
+
 from typing import Any, Dict, Literal, Optional, Sequence, Union
 from pydantic_zarr import GroupSpec, ArraySpec
 from pydantic import BaseModel, conlist, root_validator

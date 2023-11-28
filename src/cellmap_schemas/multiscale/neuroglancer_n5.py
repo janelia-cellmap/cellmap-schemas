@@ -1,3 +1,9 @@
+"""
+This module contains Pydantic models for Neuroglancer-compatible multiscale images stored 
+in N5 groups. See Neuroglancer's [N5-specific documentation](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/n5) 
+for details on what Neuroglancer expects when it reads N5 data.
+"""
+
 from typing import Any, Dict, Sequence
 from pydantic import BaseModel, PositiveInt, root_validator, validator
 from pydantic_zarr.core import GroupSpec, ArraySpec
