@@ -24,6 +24,7 @@ pytest = "^7.4.2"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.7.1"
+pytest-examples = "^0.0.10"
 
 [build-system]
 requires = ["poetry-core"]

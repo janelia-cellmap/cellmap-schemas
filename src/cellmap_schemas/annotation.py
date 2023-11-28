@@ -1,3 +1,13 @@
+"""
+The hierarchy described in this module exists to facilitate training machine learning models with manually curated 
+contiguous subsets of raw data, called "crops". Conventionally, crops are annotated densely, resulting in images where 
+each sample of the image has been given a semantic label. Crops may contain many separate label values. This "dense" 
+representation is convenient when generating annotations, but the process of training machine learning models sometimes 
+benefits from a more sparse representation, e.g. one where the values for each semantic class are stored in separate arrays.
+
+This module defines a convention for representing a dense crop as a collection of multiscale images. Each multiscale image
+should comply with the version 0.4 of the OME-NGFF specification.
+"""
 from __future__ import annotations
 from datetime import date
 from enum import Enum

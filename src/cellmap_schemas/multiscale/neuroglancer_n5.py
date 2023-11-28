@@ -9,31 +9,36 @@ class PixelResolution(BaseModel):
 	This attribute is used by N5-fluent tools like Neuroglancer to convey the
 	spacing between points on a N-dimensional coordinate grid, and the unit of measure
 	for the coordinate grid, for data stored in the N5 format.
-	Conventionally, it is used to express the resolution, in world coordinates unit for
-	an image. If this metadata is stored in the `attributes.json` file of an N5 dataset,
+	Conventionally, it is used to express the resolution and unit of measure for the axes of
+	an image.
+
+	 - If this metadata is stored in the `attributes.json` file of an N5 dataset,
 	then the visualization tool Neuroglancer can use this metadata to infer coordinates
-	for the data in the array. If this metadata is stored in the `attributes.json` file
+	for the data in the array.
+
+	- If this metadata is stored in the `attributes.json` file
 	of an N5 group that contains a collection of N5 datasets, then Neuroglancer will use
 	this metadata to infer coordinates for that collection of datasets, assuming that
-	they represent a multiscale pyramid, and provided that other required metadata is present (see `NeuroglancerN5GroupMetadata`).
+	they represent a multiscale pyramid, and provided that other required metadata is present (see [`GroupMetadata`][cellmap_schemas.multiscale.neuroglancer_n5.GroupMetadata]).
 
-	See the [Neuroglancer N5 documentation](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/n5)
+	See the Neuroglancer [N5-specific documentation](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/n5)
 	for details.
 
 	Indexing note:
 
-	The `dimensions` attribute maps on to the dimensions of the array described by this
-	metadata in colexicographic order, i.e., the first array index corresponds to the
+	The `pixelResolution.dimensions` attribute maps on to the dimensions of the array described by this
+	metadata in *colexicographic* order, i.e., the first array index corresponds to the
 	smallest stride of the stored representation of the array, and subsequent array
-	indices are ordered by increasing stride size.
+	indices are ordered by increasing stride size. This is the array indexing order used
+	by Neuroglancer, and by the N5 ecosystem of tools.
 
-	Be advised that numpy uses lexicographic order for array indexing, i.e., the first
-	array index in numpy corresponds to the largest stride of the stored representation
+	Be advised that Numpy uses *lexicographic* order for array indexing -- the first
+	array index in Numpy corresponds to the largest stride of the stored representation
 	of the array, and subsequent array indices are ordered by decreasing stride size.
-	So numpy users will need to reverse the order of the `dimensions` attribute when
-	mapping it to the axes of a numpy-like array.
+	So Numpy users must reverse the order of the `dimensions` attribute when
+	mapping it to the axes of a Numpy-like array.
 
-	See documentation for this metadata [here](https://github.com/saalfeldlab/n5-viewer#readme).
+	See the external [documentation](https://github.com/saalfeldlab/n5-viewer#readme) for this metadata for more information.
 
 	Attributes
 	----------
@@ -53,13 +58,13 @@ class PixelResolution(BaseModel):
 class GroupMetadata(BaseModel):
 	"""
 	Metadata to enable displaying an N5 group containing several datasets
-	as a multiresolution dataset in neuroglancer, based on
+	as a multiresolution image in neuroglancer, based on
 	[this comment](https://github.com/google/neuroglancer/issues/176#issuecomment-553027775).
 
 	Indexing note:
 
 	The attributes `axes`, `units`, and the elements of `scales` should be indexed
-	colexicographically, i.e. the opposite order from numpy-standard order,
+	colexicographically, i.e. the opposite order from Numpy-standard order,
 	which is lexicographic.
 
 	Attributes

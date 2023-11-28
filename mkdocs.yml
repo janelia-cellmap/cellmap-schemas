@@ -12,6 +12,10 @@ repo_url: https://github.com/janelia-cellmap/cellmap-schemas
 copyright: Copyright &copy; 2016 - 2023 HHMI / Janelia
 
 theme:
+  logo:
+    https://avatars.githubusercontent.com/u/105455240?s=200&v=4
+  favicon: 
+    https://avatars.githubusercontent.com/u/105455240?s=200&v=4
   name: material
   palette: 
   # Palette toggle for light mode
@@ -31,10 +35,11 @@ nav:
     - Cellmap cloud storage conventions: cellmap-conventions/s3-overview.md
     - Development: development.md
     - API:
-      - image metadata:
-        - annotation hierarchy: api/annotation.md
-        - neuroglancer_n5 hierarchy: api/neuroglancer_n5.md
-        - cosem hierarchy: api/cosem.md
+      - multiscale image hierarchies:
+        - neuroglancer_n5: api/multiscale/neuroglancer_n5.md
+        - cosem: api/multiscale/cosem.md
+      - annotation hierarchy: api/annotation.md
+
 plugins:
 - mkdocstrings:
     handlers:

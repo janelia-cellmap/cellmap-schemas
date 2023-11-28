@@ -124,7 +124,7 @@ class ScaleMetadata(BaseModel):
 	"""
 	Metadata for an entry in `MultiscaleMetadata.datasets`, which is group metadata that
 	contains a list of references to arrays. Structurally, `ScaleMetadata` is the same
-	as [`ArrayMetadata`][cellmap_schemas.cosem.ArrayMetadata],
+	as [`ArrayMetadata`][cellmap_schemas.multiscale.cosem.ArrayMetadata],
 	but with an additional field, `path`.
 
 	Attributes
