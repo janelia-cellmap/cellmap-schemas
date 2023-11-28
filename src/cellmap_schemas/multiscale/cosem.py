@@ -154,7 +154,7 @@ class MultiscaleMetadata(BaseModel):
 	name: Optional[str]
 	    A name for this multiscale group. Rarely used.
 	datasets: Sequence[ScaleMetadata]
-	    A sequence of [`ScaleMetadata`][cellmap_schemas.cosem.ScaleMetadata] elements
+	    A sequence of [`ScaleMetadata`][cellmap_schemas.multiscale.cosem.ScaleMetadata] elements
 	        that refer to the arrays contained inside the group bearing this metadata.
 	        Each element of `MultiscaleMetadata.datasets` references an array contained
 	        within the group that bears this metadata. These references contain
@@ -234,7 +234,7 @@ class Group(GroupSpec):
 	        information of the arrays it contains.
 	members: dict[str, MultiscaleArray]
 	    The members of this group must be instances of
-	        [`MultiscaleArray`][cellmap_schemas.mulitscale.cosem.Array]
+	        [`MultiscaleArray`][cellmap_schemas.multiscale.cosem.Array]
 
 	"""
 
