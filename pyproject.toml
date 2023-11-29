@@ -31,8 +31,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-inspect = 'cellmap_schemas.cli:inspect_cli'
-check = 'cellmap_schemas.cli:validate_cli'
+cellmap-schemas = 'cellmap_schemas.cli:cli'
 
 [tool.ruff]
 line-length = 100
