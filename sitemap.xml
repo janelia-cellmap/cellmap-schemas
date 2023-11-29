@@ -2,12 +2,32 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://janelia-cellmap.github.io/cellmap-schemas/</loc>
-         <lastmod>2023-11-09</lastmod>
+         <lastmod>2023-11-29</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://janelia-cellmap.github.io/cellmap-schemas/development/</loc>
+         <lastmod>2023-11-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://janelia-cellmap.github.io/cellmap-schemas/api/annotation/</loc>
-         <lastmod>2023-11-09</lastmod>
+         <lastmod>2023-11-29</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://janelia-cellmap.github.io/cellmap-schemas/api/multiscale/cosem/</loc>
+         <lastmod>2023-11-29</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://janelia-cellmap.github.io/cellmap-schemas/api/multiscale/neuroglancer_n5/</loc>
+         <lastmod>2023-11-29</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://janelia-cellmap.github.io/cellmap-schemas/cellmap-conventions/s3-overview/</loc>
+         <lastmod>2023-11-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
 </urlset>
