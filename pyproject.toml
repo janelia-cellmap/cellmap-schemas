@@ -40,5 +40,5 @@ line-length = 100
 convention = "numpy"
 
 [tool.ruff.format]
-quote-style = "single"
-indent-style = "tab"
+quote-style = "double"
+indent-style = "space"
