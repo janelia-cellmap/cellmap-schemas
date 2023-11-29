@@ -1,7 +1,26 @@
+"""
+The hierarchy described in this module exists to facilitate training machine learning models with manually curated 
+contiguous subsets of raw data, called "crops". Conventionally, crops are annotated densely, resulting in images where 
+each sample of the image has been given a semantic label. Crops may contain many separate label values. This "dense" 
+representation is convenient when generating annotations, but the process of training machine learning models sometimes 
+benefits from a more sparse representation, e.g. one where the values for each semantic class are stored in separate arrays.
+
+This module defines a convention for representing a dense crop as a collection of multiscale images. Each multiscale image
+should comply with the version 0.4 of the OME-NGFF specification.
+"""
 from __future__ import annotations
 from datetime import date
 from enum import Enum
-from typing import Any, Dict, Generic, List, Literal, Mapping, Optional, TypeVar, Union, runtime_checkable
+from typing import (
+    Dict,
+    Generic,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    TypeVar,
+    Union,
+)
 from pydantic_zarr import GroupSpec, ArraySpec
 from pydantic import BaseModel, Field, root_validator
 from pydantic.generics import GenericModel
@@ -14,13 +33,14 @@ class StrictBase(BaseModel):
 
 T = TypeVar("T")
 
+
 class CellmapWrapper(GenericModel, Generic[T]):
     """
     A generic pydantic model that wraps the type `T` under the namespace "cellmap"
 
     Attributes
     ----------
-    
+
     cellmap: T
         `T`, but accessed via the attribute `cellmap`.
 
@@ -29,7 +49,7 @@ class CellmapWrapper(GenericModel, Generic[T]):
 
     ```python
     from pydantic import BaseModel
-    
+
     class Foo(BaseModel):
         bar: int
 
@@ -38,6 +58,7 @@ class CellmapWrapper(GenericModel, Generic[T]):
     ```
 
     """
+
     cellmap: T
 
 
@@ -47,7 +68,7 @@ class AnnotationWrapper(GenericModel, Generic[T]):
 
     Attributes
     ----------
-    
+
     annotation: T
         `T`, but accessed via the attribute `annotation`.
 
@@ -56,7 +77,7 @@ class AnnotationWrapper(GenericModel, Generic[T]):
 
     ```python
     from pydantic import BaseModel
-    
+
     class Foo(BaseModel):
         bar: int
 
@@ -64,13 +85,13 @@ class AnnotationWrapper(GenericModel, Generic[T]):
     # {'annotation': {'bar': 10}}
     ```
     """
+
     annotation: T
 
+
 def wrap_attributes(attributes: T) -> CellmapWrapper[AnnotationWrapper[T]]:
-    return CellmapWrapper(
-        cellmap=AnnotationWrapper(
-            annotation=attributes
-            ))
+    return CellmapWrapper(cellmap=AnnotationWrapper(annotation=attributes))
+
 
 class InstanceName(StrictBase):
     long: str
@@ -118,9 +139,7 @@ classNameDict = {
     15: InstanceName(short="LD lumen", long="Lipid droplet lumen"),
     16: InstanceName(short="ER membrane", long="Endoplasmic reticulum membrane"),
     17: InstanceName(short="ER lumen", long="Endoplasmic reticulum membrane"),
-    18: InstanceName(
-        short="ERES membrane", long="Endoplasmic reticulum exit site membrane"
-    ),
+    18: InstanceName(short="ERES membrane", long="Endoplasmic reticulum exit site membrane"),
     19: InstanceName(short="ERES lumen", long="Endoplasmic reticulum exit site lumen"),
     20: InstanceName(short="NE membrane", long="Nuclear envelope membrane"),
     21: InstanceName(short="NE lumen", long="Nuclear envelope lumen"),
@@ -146,9 +165,7 @@ classNameDict = {
     41: InstanceName(short="Endothelial cells", long="Endothelial cells"),
     42: InstanceName(short="Cardiomyocytes", long="Cardiomyocytes"),
     43: InstanceName(short="Epicardial cells", long="Epicardial cells"),
-    44: InstanceName(
-        short="Parietal pericardial cells", long="Parietal pericardial cells"
-    ),
+    44: InstanceName(short="Parietal pericardial cells", long="Parietal pericardial cells"),
     45: InstanceName(short="Red blood cells", long="Red blood cells"),
     46: InstanceName(short="White blood cells", long="White blood cells"),
     47: InstanceName(short="Peroxisome membrane", long="Peroxisome membrane"),
@@ -185,7 +202,7 @@ class SemanticSegmentation(StrictBase):
 
 class InstanceSegmentation(StrictBase):
     """
-    Metadata for instance segmentation, i.e. a segmentation where unique numerical 
+    Metadata for instance segmentation, i.e. a segmentation where unique numerical
     values represent distinct occurrences of the same semantic class.
 
     Attributes
@@ -199,12 +216,13 @@ class InstanceSegmentation(StrictBase):
         must be numeric values contained in the array described by this metadata.
 
         For example, if an annotator produces an array where 0 represents 'unknown' and
-        the values 1...N represent instances of some class, then `encoding` would take 
-        the value {'unknown': 0}. The meaning of the non-zero values (i.e., that they 
-        represent distinct instances of a class) can be inferred from the fact that 
-        this is instance segmentation, and thus these values do not appear as keys in 
+        the values 1...N represent instances of some class, then `encoding` would take
+        the value {'unknown': 0}. The meaning of the non-zero values (i.e., that they
+        represent distinct instances of a class) can be inferred from the fact that
+        this is instance segmentation, and thus these values do not appear as keys in
         `encoding`.
     """
+
     type: Literal["instance_segmentation"] = "instance_segmentation"
     encoding: Dict[Possibility, int]
 
@@ -212,6 +230,7 @@ class InstanceSegmentation(StrictBase):
 AnnotationType = Union[SemanticSegmentation, InstanceSegmentation]
 
 TName = TypeVar("TName", bound=str)
+
 
 class AnnotationArrayAttrs(GenericModel, Generic[TName]):
     """
@@ -283,10 +302,10 @@ class CropGroupAttrs(GenericModel, Generic[TName]):
     description: Optional[str]
         A description of the crop. Optional.
     created_by: list[str]
-        The people or entities responsible for creating the annotations in the crop. If 
+        The people or entities responsible for creating the annotations in the crop. If
         unknown, use an empty list.
     created_with: list[str]
-        The tool(s) used to create the annotations in the crop. If unknown, 
+        The tool(s) used to create the annotations in the crop. If unknown,
         use an empty list.
     start_date: Optional[datetime.date]
         The calendar date when the crop was started. Optional.
@@ -298,16 +317,16 @@ class CropGroupAttrs(GenericModel, Generic[TName]):
         A URI pointing to a description of the annotation protocol used to produce the
         annotations. Optional.
     class_names: list[str]
-        The names of the classes that are annotated in this crop. Each element from 
+        The names of the classes that are annotated in this crop. Each element from
         `class_names` should also be the name of a Zarr group stored under the Zarr
         group that contains this metadata.
     """
-    
+
     class Config:
         frozen = True
         validate_assignment = True
-    
-    version: Literal['0.1.1'] = Field('0.1.1', allow_mutation=False)
+
+    version: Literal["0.1.1"] = Field("0.1.1", allow_mutation=False)
     name: Optional[str]
     description: Optional[str]
     created_by: list[str]
@@ -328,59 +347,64 @@ class CropGroupAttrs(GenericModel, Generic[TName]):
             out[key] = _value
         return out
 
+
 class AnnotationArray(ArraySpec):
     """
-    The specification of a zarr array that contains data from an annotation, e.g. a 
+    The specification of a zarr array that contains data from an annotation, e.g. a
     semantic segmentation or an instance segmentation.
 
     Attributes
     ----------
     attrs : CellmapWrapper[AnnotationWrapper[AnnotationArrayAttrs]]
         Metadata describing the annotated class, which is nested
-        under two outer dicts that define the namespace of this metadata, 
+        under two outer dicts that define the namespace of this metadata,
         i.e. `{'cellmap': {'annotation': {...}}}`.
         See [AnnotationGroupAttrs][cellmap_schemas.annotation.AnnotationArrayAttrs] for
         details of the wrapped metadata.
     """
+
     attrs: CellmapWrapper[AnnotationWrapper[AnnotationArrayAttrs]]
+
 
 class AnnotationGroup(GroupSpec):
     """
-    The specification of a multiscale group that contains a segmentation of a single 
+    The specification of a multiscale group that contains a segmentation of a single
     class.
 
     Attributes
     ----------
     attrs : CellmapWrapper[AnnotationWrapper[AnnotationGroupAttrs]]
         A dict describing the annotation, which is nested
-        under two outer dicts that define the namespace of this metadata, 
+        under two outer dicts that define the namespace of this metadata,
         i.e. `{'cellmap': {'annotation': {...}}}`.
-        See [AnnotationGroupAttrs][cellmap_schemas.annotation.AnnotationGroupAttrs] for 
+        See [AnnotationGroupAttrs][cellmap_schemas.annotation.AnnotationGroupAttrs] for
         details of the wrapped metadata.
     """
+
     attrs: CellmapWrapper[AnnotationWrapper[AnnotationGroupAttrs]]
     members: Dict[str, AnnotationArray]
 
 
 class CropGroup(GroupSpec):
     """
-    The specification of a crop group. Conventionally, a crop is a subset of a 
-    larger imaging volume that has been annotated by a human annotator. A crop may 
-    contain multiple semantic classes, which might be annotated via semantic 
+    The specification of a crop group. Conventionally, a crop is a subset of a
+    larger imaging volume that has been annotated by a human annotator. A crop may
+    contain multiple semantic classes, which might be annotated via semantic
     segmentation or instance segmentation.
-    
+
     Attributes
     ----------
     attrs : CellmapWrapper[AnnotationWrapper[CropGroupAttrs]]
         A dict describing all annotations contained within the group, which is nested
-         under two outer dicts that define the namespace of this metadata, 
-         i.e. `{'cellmap': {'annotation': {...}}}`. See 
-        [CropGroupAttrs][cellmap_schemas.annotation.CropGroupAttrs] for details 
+         under two outer dicts that define the namespace of this metadata,
+         i.e. `{'cellmap': {'annotation': {...}}}`. See
+        [CropGroupAttrs][cellmap_schemas.annotation.CropGroupAttrs] for details
         of the structure of the metadata.
     members : Mapping[str, AnnotationGroup]
-        A dict with keys that are strings and values that are instances of 
+        A dict with keys that are strings and values that are instances of
         [AnnotationGroup][cellmap_schemas.annotation.AnnotationGroup].
 
     """
+
     attrs: CellmapWrapper[AnnotationWrapper[CropGroupAttrs]]
     members: Mapping[str, AnnotationGroup]

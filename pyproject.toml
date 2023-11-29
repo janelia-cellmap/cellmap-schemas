@@ -9,6 +9,8 @@ packages = [{include = "cellmap_schemas", from = "src"}]
 [tool.poetry.dependencies]
 python = "^3.9"
 pydantic-zarr = "^0.5.0"
+s3fs = "^2023.10.0"
+rich = "^13.7.0"
 
 
 [tool.poetry.group.docs.dependencies]
@@ -19,9 +21,24 @@ mkdocstrings = {extras = ["python"], version = "^0.23.0"}
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4.2"
 
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.7.1"
+pytest-examples = "^0.0.10"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-schematize = 'cellmap_schemas.cli:schematize'
+cellmap-schemas = 'cellmap_schemas.cli:cli'
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
