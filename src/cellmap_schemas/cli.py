@@ -102,8 +102,7 @@ def parse_url(url: str) -> Tuple[str, Literal['.zarr', '.n5'], str]:
 	----------
 
 	url: str
-	        An FSSpec-compatible URL, e.g.
-	        s3://bucket/path.zarr/foo or http://domain.com/path.n5/bar
+	        An FSSpec-compatible URL, e.g. s3://bucket/path.zarr/foo or http://domain.com/path.n5/bar
 
 	Returns
 	-------

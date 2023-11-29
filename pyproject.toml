@@ -36,6 +36,9 @@ cellmap-schemas = 'cellmap_schemas.cli:cli'
 [tool.ruff]
 line-length = 100
 
+[tool.ruff.pydocstyle]
+convention = "numpy"
+
 [tool.ruff.format]
 quote-style = "single"
 indent-style = "tab"
