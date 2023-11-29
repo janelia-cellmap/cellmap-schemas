@@ -2,6 +2,7 @@ from typing import Literal, Tuple, Union
 import click
 from pydantic_zarr import ArraySpec, GroupSpec, from_zarr
 from pydantic import ValidationError
+from cellmap_schemas import annotation
 from cellmap_schemas.multiscale import cosem, neuroglancer_n5
 import zarr
 from rich.console import Console
@@ -10,7 +11,7 @@ from rich import print_json
 
 install()
 
-GROUP_TYPES = ("multiscale.cosem.Group", "multiscale.neuroglancer_n5.Group")
+GROUP_TYPES = ("multiscale.cosem.Group", "multiscale.neuroglancer_n5.Group", "annotation.CropGroup")
 
 
 @click.group
@@ -55,6 +56,7 @@ def check(url: str, group_type: str):
             Avaialble options: \n
                     multiscale.cosem.Group\n
                     multiscale.neuroglancer_n5.Group
+                    annotation.CropGroup
     """
     store_stem, prefix, component_path = parse_url(url)
     store = guess_store(store_stem=store_stem, prefix=prefix)
@@ -65,6 +67,8 @@ def check(url: str, group_type: str):
         validate(cosem.Group, node, console)
     elif group_type == "multiscale.neuroglancer_n5.Group":
         validate(neuroglancer_n5.Group, node, console)
+    elif group_type == "annotation.CropGroup":
+        validate(annotation.CropGroup, node, console)
     else:
         console.print(
             f'`group_type` parameter "{group_type}" was not recognized.\n'
