@@ -34,7 +34,7 @@ nav:
     - About: index.md
     - Cellmap cloud storage conventions: cellmap-conventions/s3-overview.md
     - Development: development.md
-    - API:
+    - API documentation:
       - multiscale image hierarchies:
         - neuroglancer_n5: api/multiscale/neuroglancer_n5.md
         - cosem: api/multiscale/cosem.md
