@@ -22,7 +22,7 @@ from typing import (
     Union,
 )
 from pydantic_zarr.v2 import GroupSpec, ArraySpec
-from pydantic import BaseModel, Field, model_validator, field_serializer
+from pydantic import BaseModel, model_validator, field_serializer
 
 T = TypeVar("T")
 
@@ -86,7 +86,7 @@ def wrap_attributes(attributes: T) -> CellmapWrapper[AnnotationWrapper[T]]:
     return CellmapWrapper(cellmap=AnnotationWrapper(annotation=attributes))
 
 
-class InstanceName(BaseModel, extra='forbid'):
+class InstanceName(BaseModel, extra="forbid"):
     long: str
     short: str
 
@@ -97,19 +97,19 @@ class Annotated(str, Enum):
     empty: str = "empty"
 
 
-class AnnotationState(BaseModel, extra='forbid'):
+class AnnotationState(BaseModel, extra="forbid"):
     present: bool
     annotated: Annotated
 
 
-class Label(BaseModel, extra='forbid'):
+class Label(BaseModel, extra="forbid"):
     value: int
     name: InstanceName
     annotationState: AnnotationState
     count: Optional[int]
 
 
-class LabelList(BaseModel, extra='forbid'):
+class LabelList(BaseModel, extra="forbid"):
     labels: List[Label]
     annotation_type: AnnotationType = "semantic"
 
@@ -168,7 +168,7 @@ classNameDict = {
 Possibility = Literal["unknown", "absent"]
 
 
-class SemanticSegmentation(BaseModel, extra='forbid'):
+class SemanticSegmentation(BaseModel, extra="forbid"):
     """
     Metadata for a semantic segmentation, i.e. a segmentation where unique
     numerical values represent separate semantic classes.
@@ -193,7 +193,7 @@ class SemanticSegmentation(BaseModel, extra='forbid'):
     encoding: Dict[Union[Possibility, Literal["present"]], int]
 
 
-class InstanceSegmentation(BaseModel, extra='forbid'):
+class InstanceSegmentation(BaseModel, extra="forbid"):
     """
     Metadata for instance segmentation, i.e. a segmentation where unique numerical
     values represent distinct occurrences of the same semantic class.
@@ -251,7 +251,7 @@ class AnnotationArrayAttrs(BaseModel, Generic[TName]):
     # this is array metadata because labels might disappear during downsampling
     annotation_type: AnnotationType
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def check_encoding(self: "AnnotationArrayAttrs"):
         assert set(self.annotation_type.encoding.keys()).issuperset((self.complement_counts.keys()))
         return self
@@ -276,8 +276,10 @@ class AnnotationGroupAttrs(BaseModel, Generic[TName]):
     class_name: TName
     annotation_type: AnnotationType
 
+
 def serialize_date(value: date) -> str:
     return value.isoformat()
+
 
 class CropGroupAttrs(BaseModel, Generic[TName], validate_assignment=True):
     """
@@ -323,13 +325,14 @@ class CropGroupAttrs(BaseModel, Generic[TName], validate_assignment=True):
     protocol_uri: Optional[str]
     class_names: list[TName]
 
-    @field_serializer('start_date')
+    @field_serializer("start_date")
     def ser_end_date(value: date):
         return serialize_date(value)
 
-    @field_serializer('end_date')
+    @field_serializer("end_date")
     def ser_start_date(value: date):
         return serialize_date(value)
+
 
 class AnnotationArray(ArraySpec):
     """

@@ -4,7 +4,7 @@ in N5 groups. See Neuroglancer's [N5-specific documentation](https://github.com/
 for details on what Neuroglancer expects when it reads N5 data.
 """
 
-from typing import Annotated, Any, Dict, Sequence
+from typing import Annotated, Sequence
 from pydantic import BaseModel, PositiveInt, model_validator, AfterValidator
 from pydantic_zarr.v2 import GroupSpec, ArraySpec
 import zarr
@@ -96,13 +96,13 @@ class GroupMetadata(BaseModel):
     scales: Sequence[Sequence[PositiveInt]]
     pixelResolution: PixelResolution
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def check_dimensionality(self: "GroupMetadata"):
         if not len(self.axes) == len(self.units):
             msg = (
                 f"The number of elements in `axes` ({len(self.axes)}) does not"
                 f"match the number of elements in `units` ({len(self.units)})."
-                )
+            )
             raise ValueError(msg)
         for idx, scale in enumerate(self.scales):
             if idx == 0 and not all(s == 1 for s in scale):
@@ -113,7 +113,7 @@ class GroupMetadata(BaseModel):
                     f"The number of elements in `axes` ({len(self.axes)}) does not"
                     f"match the number of elements in the {idx}th element in `scales`"
                     f"({len(self.units)})."
-                    )
+                )
 
                 raise ValueError(msg)
 
@@ -129,10 +129,11 @@ class GroupMetadata(BaseModel):
                 msg = (
                     f"The {idx}th element of `units` ({u}) does not "
                     f"match `pixelResolution.unit` ({self.pixelResolution.unit})"
-                    )
+                )
                 raise ValueError(msg)
 
         return self
+
 
 def check_members(members: dict[str, ArraySpec]) -> dict[str, ArraySpec]:
     # check that the names of the arrays are s0, s1, s2, etc
@@ -143,6 +144,7 @@ def check_members(members: dict[str, ArraySpec]) -> dict[str, ArraySpec]:
     # check that dimensionality is uniform
     assert len(set(len(a.shape) for a in members.values())) == 1
     return members
+
 
 def check_scale_level_name(name: str) -> bool:
     """
@@ -174,6 +176,7 @@ def check_scale_level_name(name: str) -> bool:
         valid = False
     return valid
 
+
 class Group(GroupSpec):
     """
     A `GroupSpec` representing the structure of a N5 group with
@@ -194,9 +197,8 @@ class Group(GroupSpec):
     attributes: GroupMetadata
     members: Annotated[dict[str, ArraySpec], AfterValidator(check_members)]
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def check_scales(self: "Group"):
-
         scales = self.attributes.scales
         members = self.members
 
@@ -213,7 +215,6 @@ class Group(GroupSpec):
                 )
 
         return self
-    
 
     @classmethod
     def from_zarr(cls, node: zarr.Group):

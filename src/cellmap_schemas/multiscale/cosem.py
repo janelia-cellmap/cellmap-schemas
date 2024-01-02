@@ -7,9 +7,9 @@ Note that the hierarchy convention modeled here will likely be superceded by con
 in the [OME-NGFF](https://ngff.openmicroscopy.org/) specification.
 """
 
-from typing import Annotated, Any, Dict, List, Literal, Optional, Sequence, Union
+from typing import Annotated, List, Literal, Optional, Sequence
 from pydantic_zarr.v2 import GroupSpec, ArraySpec
-from pydantic import BaseModel, Field, conlist, model_validator
+from pydantic import BaseModel, Field, model_validator
 from cellmap_schemas.multiscale import neuroglancer_n5
 
 
@@ -58,7 +58,7 @@ class STTransform(BaseModel):
     translate: Sequence[float]
     scale: Sequence[float]
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_argument_length(self: "STTransform"):
         if not len(self.axes) == len(self.units) == len(self.translate) == len(self.scale):
             raise ValueError(
@@ -88,12 +88,12 @@ class ArrayMetadata(BaseModel):
     pixelResolution: neuroglancer_n5.PixelResolution
     transform: STTransform
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def check_dimensionality(self: "ArrayMetadata"):
         """
         Check that `pixelResolution` and `transform` are consistent.
         """
-        
+
         pixr = self.pixelResolution
         tx = self.transform
 
@@ -209,7 +209,7 @@ class Array(ArraySpec):
 
     attributes: ArrayMetadata
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def check_consistent_transform(self: "Array"):
         """
         Check that the spatial metadata in the attributes of this array are consistent
@@ -246,7 +246,7 @@ class Group(GroupSpec):
     attributes: GroupMetadata
     members: dict[str, Array]
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def check_arrays_consistent(self: "Group"):
         """
         Check that the arrays referenced by `GroupMetadata` are consist with the

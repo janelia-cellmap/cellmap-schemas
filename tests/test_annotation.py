@@ -36,7 +36,9 @@ def test_cropgroup():
         ann_array_attrs = AnnotationArrayAttrs[ClassNamesT](
             class_name=class_name, complement_counts={"absent": 0}, annotation_type=ann_type
         )
-        ann_array = AnnotationArray.from_array(array, attributes=wrap_attributes(ann_array_attrs).model_dump())
+        ann_array = AnnotationArray.from_array(
+            array, attributes=wrap_attributes(ann_array_attrs).model_dump()
+        )
 
         ann_group_attrs = AnnotationGroupAttrs[ClassNamesT](
             class_name=class_name, annotation_type=ann_type
@@ -49,7 +51,9 @@ def test_cropgroup():
         )
         ann_groups[class_name] = ann_group
 
-    crop_group = CropGroup(members=ann_groups, attributes=wrap_attributes(crop_group_attrs).model_dump())
+    crop_group = CropGroup(
+        members=ann_groups, attributes=wrap_attributes(crop_group_attrs).model_dump()
+    )
 
     stored = crop_group.to_zarr(zarr.MemoryStore(), path="test")
     observed = CropGroup.from_zarr(stored)
