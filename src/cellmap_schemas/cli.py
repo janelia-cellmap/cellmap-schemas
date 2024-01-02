@@ -120,7 +120,7 @@ def parse_url(url: str) -> Tuple[str, Literal[".zarr", ".n5"], str]:
             "least one instance of *.n5 or *.zarr. Are you sure this url refers to "
             "Zarr or N5 storage?"
         )
-    if ".n5" and ".zarr" in url:
+    if ".n5" in url and ".zarr" in url:
         raise ValueError(
             "Invalid url parameter. Because this url contains both the .n5 and .zarr "
             "substrings, it is ambiguous. Valid urls must contain only one instance of "

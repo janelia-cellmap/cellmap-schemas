@@ -26,13 +26,13 @@ def test_sttransform_attribute_lengths(ndim: int, broken_attribute: Optional[str
     }
     if broken_attribute is None:
         # ensure that normal validation works correctly
-        STTransform.parse_obj(data)
+        STTransform.model_validate(data)
         return
     else:
         # chop the end off of a dimensional attribute to break validation
         data[broken_attribute] = data[broken_attribute][:-1]
         with pytest.raises(ValidationError):
-            STTransform.parse_obj(data)
+            STTransform.model_validate(data)
         return
 
 
@@ -63,11 +63,11 @@ def test_multiscale_array_attribute_length(
         pixr = PixelResolution(dimensions=transform.scale[::-1], unit=transform.units[0])
     else:
         pixr = PixelResolution(dimensions=transform.scale, unit=transform.units[0])
-    data = {"transform": transform.dict(), "pixelResolution": pixr.dict()}
+    data = {"transform": transform.model_dump(), "pixelResolution": pixr.model_dump()}
 
     if broken_attribute is None:
         # ensure that normal validation works correctly
-        ArrayMetadata.parse_obj(data)
+        ArrayMetadata.model_validate(data)
         return
 
     elif broken_attribute == "pixelResolution.dimensions":
@@ -78,7 +78,7 @@ def test_multiscale_array_attribute_length(
         data["transform"][attribute] = data["transform"][attribute][:-1]
 
     with pytest.raises(ValidationError):
-        ArrayMetadata.parse_obj(data)
+        ArrayMetadata.model_validate(data)
 
 
 def test_multiscale_array_consistent_units():
@@ -89,10 +89,10 @@ def test_multiscale_array_consistent_units():
         units=["km", "m"],
     )
     pixr = PixelResolution(dimensions=transform.scale[::-1], unit="km")
-    data = {"transform": transform.dict(), "pixelResolution": pixr.dict()}
+    data = {"transform": transform.model_dump(), "pixelResolution": pixr.model_dump()}
 
     with pytest.raises(ValidationError):
-        ArrayMetadata.parse_obj(data)
+        ArrayMetadata.model_validate(data)
 
 
 @pytest.mark.parametrize("order", ("C", "F"))
@@ -107,7 +107,7 @@ def test_multiscale_array_c_f_order(order: Literal["C", "F"]):
     data = {"transform": transform, "pixelResolution": pixr}
 
     with pytest.raises(ValidationError):
-        ArrayMetadata.parse_obj(data)
+        ArrayMetadata.model_validate(data)
 
 
 @pytest.mark.parametrize("shape", ((16, 16), (64, 64, 64), (128, 128, 128)))
@@ -135,31 +135,31 @@ def test_multiscale_group(
         else:
             pixr = PixelResolution(dimensions=transform.scale, unit=transform.units[0])
         attrs = ArrayMetadata(transform=transform, pixelResolution=pixr)
-        members[name] = Array(shape=shape, chunks=shape, attrs=attrs, dtype="uint8")
+        members[name] = Array(shape=shape, chunks=shape, attributes=attrs, dtype="uint8")
 
     # normal validation
     multiscale_meta = MultiscaleMetadata(
         datasets=[
-            ScaleMetadata(path=key, transform=value.attrs.transform)
+            ScaleMetadata(path=key, transform=value.attributes.transform)
             for key, value in members.items()
         ]
     )
     if order == "C":
-        axes = members["s0"].attrs.transform.axes[::-1]
+        axes = members["s0"].attributes.transform.axes[::-1]
     else:
-        axes = members["s0"].attrs.transform.axes
+        axes = members["s0"].attributes.transform.axes
     attrs = GroupMetadata(
         scales=scales,
         units=["nm"] * ndim,
-        pixelResolution=members["s0"].attrs.pixelResolution,
+        pixelResolution=members["s0"].attributes.pixelResolution,
         axes=axes,
         multiscales=[multiscale_meta],
-    ).dict()
-    members_dict = {key: value.dict() for key, value in members.items()}
+    ).model_dump()
+    members_dict = {key: value.model_dump() for key, value in members.items()}
     if broken_attribute is None:
-        Group(members=members_dict, attrs=attrs)
+        Group(members=members_dict, attributes=attrs)
         return
     elif broken_attribute == "axes":
         attrs["axes"] = attrs["axes"][::-1]
         with pytest.raises(ValidationError):
-            Group(members=members_dict, attrs=attrs)
+            Group(members=members_dict, attributes=attrs)

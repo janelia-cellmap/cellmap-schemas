@@ -7,9 +7,9 @@ Note that the hierarchy convention modeled here will likely be superceded by con
 in the [OME-NGFF](https://ngff.openmicroscopy.org/) specification.
 """
 
-from typing import Any, Dict, Literal, Optional, Sequence, Union
-from pydantic_zarr import GroupSpec, ArraySpec
-from pydantic import BaseModel, conlist, root_validator
+from typing import Annotated, Any, Dict, List, Literal, Optional, Sequence, Union
+from pydantic_zarr.v2 import GroupSpec, ArraySpec
+from pydantic import BaseModel, Field, conlist, model_validator
 from cellmap_schemas.multiscale import neuroglancer_n5
 
 
@@ -58,21 +58,17 @@ class STTransform(BaseModel):
     translate: Sequence[float]
     scale: Sequence[float]
 
-    @root_validator
-    def validate_argument_length(cls, values: Dict[str, Union[Sequence[str], Sequence[float]]]):
-        scale = values.get("scale")
-        axes = values.get("axes")
-        units = values.get("units")
-        translate = values.get("translate")
-        if not len(axes) == len(units) == len(translate) == len(scale):
+    @model_validator(mode='after')
+    def validate_argument_length(self: "STTransform"):
+        if not len(self.axes) == len(self.units) == len(self.translate) == len(self.scale):
             raise ValueError(
                 "The length of all arguments must match. "
-                f"len(axes) = {len(axes)}, "
-                f"len(units) = {len(units)}, "
-                f"len(translate) = {len(translate)}, "
-                f"len(scale) = {len(scale)}."
+                f"len(axes) = {len(self.axes)}, "
+                f"len(units) = {len(self.units)}, "
+                f"len(translate) = {len(self.translate)}, "
+                f"len(scale) = {len(self.scale)}."
             )
-        return values
+        return self
 
 
 class ArrayMetadata(BaseModel):
@@ -92,41 +88,42 @@ class ArrayMetadata(BaseModel):
     pixelResolution: neuroglancer_n5.PixelResolution
     transform: STTransform
 
-    @root_validator
-    def check_dimensionality(cls, values: dict[str, Any]):
+    @model_validator(mode='after')
+    def check_dimensionality(self: "ArrayMetadata"):
         """
         Check that `pixelResolution` and `transform` are consistent.
         """
-        # guard against pydantic 1-ism where sometimes the root validator doesn't
-        # provide all the attributes in `values`
-        if "pixelResolution" in values and "transform" in values:
-            pixr: neuroglancer_n5.PixelResolution = values.get("pixelResolution")
-            tx: STTransform = values.get("transform")
+        
+        pixr = self.pixelResolution
+        tx = self.transform
 
-            if not all(pixr.unit == u for u in tx.units):
-                raise ValueError(
-                    f"The `pixelResolution` and `transform` attributes are incompatible: "
-                    f"the `unit` attribute of `pixelResolution` ({pixr.unit}) was not "
-                    f"identical to ever element in `transform.units` ({tx.units})."
+        if not all(pixr.unit == u for u in tx.units):
+            msg = (
+                f"The `pixelResolution` and `transform` attributes are incompatible: "
+                f"the `unit` attribute of `pixelResolution` ({pixr.unit}) was not "
+                f"identical to ever element in `transform.units` ({tx.units})."
+            )
+            raise ValueError(msg)
+
+        if tx.order == "C":
+            if pixr.dimensions != tx.scale[::-1]:
+                msg = (
+                    "The `pixelResolution` and `transform` attributes are incompatible: "
+                    f"the `pixelResolution.dimensions` attribute ({pixr.dimensions}) "
+                    "should match the reversed `transform.scale` attribute "
+                    f"({tx.scale[::-1]})."
                 )
-
-            if tx.order == "C":
-                if pixr.dimensions != tx.scale[::-1]:
-                    raise ValueError(
-                        "The `pixelResolution` and `transform` attributes are incompatible: "
-                        f"the `pixelResolution.dimensions` attribute ({pixr.dimensions}) "
-                        "should match the reversed `transform.scale` attribute "
-                        f"({tx.scale[::-1]})."
-                    )
-            else:
-                if pixr.dimensions != tx.scale:
-                    raise ValueError(
-                        "The `pixelResolution` and `transform` attributes are incompatible: "
-                        f"the `pixelResolution.dimensions` attribute ({pixr.dimensions}) "
-                        "should match the `transform.scale` attribute "
-                        f"({tx.scale})."
-                    )
-        return values
+                raise ValueError(msg)
+        else:
+            if pixr.dimensions != tx.scale:
+                msg = (
+                    "The `pixelResolution` and `transform` attributes are incompatible: "
+                    f"the `pixelResolution.dimensions` attribute ({pixr.dimensions}) "
+                    "should match the `transform.scale` attribute "
+                    f"({tx.scale})."
+                )
+                raise ValueError(msg)
+        return self
 
 
 class ScaleMetadata(BaseModel):
@@ -171,7 +168,7 @@ class MultiscaleMetadata(BaseModel):
         metadata for the array, under the `ScaleMeta.transform` attribute.
     """
 
-    name: Optional[str]
+    name: Optional[str] = None
     datasets: Sequence[ScaleMetadata]
 
 
@@ -197,7 +194,7 @@ class GroupMetadata(neuroglancer_n5.GroupMetadata):
         images at different levels of detail.
     """
 
-    multiscales: conlist(MultiscaleMetadata, max_items=1, min_items=1)
+    multiscales: Annotated[List[MultiscaleMetadata], Field(..., max_length=1, min_length=1)]
 
 
 class Array(ArraySpec):
@@ -206,29 +203,28 @@ class Array(ArraySpec):
 
     Attributes
     ----------
-    attrs: ArrayMetadata
+    attributes: ArrayMetadata
 
     """
 
-    attrs: ArrayMetadata
+    attributes: ArrayMetadata
 
-    @root_validator
-    def check_consistent_transform(cls, values: Dict[str, Any]):
+    @model_validator(mode='after')
+    def check_consistent_transform(self: "Array"):
         """
         Check that the spatial metadata in the attributes of this array are consistent
         with the properties of the array.
         """
-        if "attrs" in values:
-            tx: STTransform = values.get("attrs").transform
-            shape: list[int] = values.get("shape")
-            if not len(shape) == len(tx.axes):
-                raise ValueError(
-                    "The `shape` and `attrs.transform` attributes are incompatible: "
-                    f"The length of `shape` ({len(shape)}) must match the length of "
-                    f"`transform.axes` ({len(tx.axes)}) "
-                )
 
-        return values
+        if not len(self.shape) == len(self.attributes.transform.axes):
+            msg = (
+                "The `shape` and `attributes.transform` attributes are incompatible: "
+                f"The length of `shape` ({len(self.shape)}) must match the length of "
+                f"`transform.axes` ({len(self.attributes.transform.axes)}) "
+            )
+            raise ValueError(msg)
+
+        return self
 
 
 class Group(GroupSpec):
@@ -238,7 +234,7 @@ class Group(GroupSpec):
 
     Attributes
     ----------
-    attrs: GroupMetadata
+    attributes: GroupMetadata
         Metadata that conveys that this is a multiscale group, and the coordinate
             information of the arrays it contains.
     members: dict[str, MultiscaleArray]
@@ -247,62 +243,65 @@ class Group(GroupSpec):
 
     """
 
-    attrs: GroupMetadata
+    attributes: GroupMetadata
     members: dict[str, Array]
 
-    @root_validator
-    def check_arrays_consistent(cls, values: dict[str, Any]):
+    @model_validator(mode='after')
+    def check_arrays_consistent(self: "Group"):
         """
         Check that the arrays referenced by `GroupMetadata` are consist with the
         arrays in `members`.
         """
 
-        # weird defense against pydantic 1.x not including complete data in values
-        if "attrs" in values:
-            axes = values.get("attrs").axes
-            multiscales: MultiscaleMetadata = values.get("attrs").multiscales[0]
-            members: dict[str, Union[GroupSpec, ArraySpec]] = values.get("members")
-            for idx, element in enumerate(multiscales.datasets):
-                if element.path not in members:
-                    raise ValueError(
-                        "The `attrs` and `members` attributes are incompatible: "
-                        f"`attrs.multiscales[0].datasets[{idx}].path` refers to an array "
-                        f"named {element.path} that does not exist in `members`."
+        axes = self.attributes.axes
+        multiscales = self.attributes.multiscales[0]
+        members = self.members
+        for idx, element in enumerate(multiscales.datasets):
+            if element.path not in members:
+                msg = (
+                    "The `attributes` and `members` attributes are incompatible: "
+                    f"`attributes.multiscales[0].datasets[{idx}].path` refers to an array "
+                    f"named {element.path} that does not exist in `members`."
+                )
+                raise ValueError(msg)
+            else:
+                if isinstance(members[element.path], GroupSpec):
+                    msg = (
+                        "The `attributes` and `members` attributes are incompatible: "
+                        f"`attributes.multiscales[0].datasets[{idx}].path` refers to an array "
+                        f"named {element.path}, but `members[{element.path}]` "
+                        "describes a group."
                     )
+                    raise ValueError(msg)
                 else:
-                    if isinstance(members[element.path], GroupSpec):
-                        raise ValueError(
-                            "The `attrs` and `members` attributes are incompatible: "
-                            f"`attrs.multiscales[0].datasets[{idx}].path` refers to an array "
-                            f"named {element.path}, but `members[{element.path}]` "
-                            "describes a group."
+                    # check that the array has a transform that matches the one in
+                    # multiscale metadata
+                    member_array: Array = members[element.path]
+                    if member_array.attributes.transform != element.transform:
+                        msg = (
+                            "The `attributes` and `members` attributes are incompatible: "
+                            f"`attributes.multiscales[0].datasets[{idx}].transform` "
+                            "does not match the `attributes.transform` attribute of the "
+                            f"correspdonding array described in members[{element.path}]"
                         )
-                    else:
-                        # check that the array has a transform that matches the one in
-                        # multiscale metadata
-                        member_array: Array = members[element.path]
-                        if member_array.attrs.transform != element.transform:
-                            raise ValueError(
-                                "The `attrs` and `members` attributes are incompatible: "
-                                f"`attrs.multiscales[0].datasets[{idx}].transform` "
-                                "does not match the `attrs.transform` attribute of the "
-                                f"correspdonding array described in members[{element.path}]"
+                        raise ValueError(msg)
+                    if element.transform.order == "F":
+                        if element.transform.axes != axes:
+                            msg = (
+                                "The `attributes` and `members` attributes are incompatible: "
+                                f"`attributes.multiscales[0].datasets[{idx}].transform.axes`, "
+                                f"indexed according to `attributes.multiscales[0].datasets[{idx}].transform.order` ({element.transform.order}) "
+                                f"is {element.transform.axes},  which does not match `attributes.axes` ({axes})."
                             )
-                        if element.transform.order == "F":
-                            if element.transform.axes != axes:
-                                raise ValueError(
-                                    "The `attrs` and `members` attributes are incompatible: "
-                                    f"`attrs.multiscales[0].datasets[{idx}].transform.axes`, "
-                                    f"indexed according to `attrs.multiscales[0].datasets[{idx}].transform.order` ({element.transform.order}) "
-                                    f"is {element.transform.axes},  which does not match `attrs.axes` ({axes})."
-                                )
-                        else:
-                            if element.transform.axes != axes[::-1]:
-                                raise ValueError(
-                                    "The `attrs` and `members` attributes are incompatible: "
-                                    f"`attrs.multiscales[0].datasets[{idx}].transform.axes`, "
-                                    f"indexed according to `attrs.multiscales[0].datasets[{idx}].transform.order` ({element.transform.order}) "
-                                    f"is {element.transform.axes[::-1]},  which does not match `attrs.axes` ({axes})."
-                                )
+                            raise ValueError(msg)
+                    else:
+                        if element.transform.axes != axes[::-1]:
+                            msg = (
+                                "The `attributes` and `members` attributes are incompatible: "
+                                f"`attributes.multiscales[0].datasets[{idx}].transform.axes`, "
+                                f"indexed according to `attributes.multiscales[0].datasets[{idx}].transform.order` ({element.transform.order}) "
+                                f"is {element.transform.axes[::-1]},  which does not match `attributes.axes` ({axes})."
+                            )
+                            raise ValueError(msg)
 
-        return values
+        return self

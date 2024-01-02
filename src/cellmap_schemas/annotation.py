@@ -21,20 +21,13 @@ from typing import (
     TypeVar,
     Union,
 )
-from pydantic_zarr import GroupSpec, ArraySpec
-from pydantic import BaseModel, Field, root_validator
-from pydantic.generics import GenericModel
-
-
-class StrictBase(BaseModel):
-    class Config:
-        extra = "forbid"
-
+from pydantic_zarr.v2 import GroupSpec, ArraySpec
+from pydantic import BaseModel, Field, model_validator, field_serializer
 
 T = TypeVar("T")
 
 
-class CellmapWrapper(GenericModel, Generic[T]):
+class CellmapWrapper(BaseModel, Generic[T]):
     """
     A generic pydantic model that wraps the type `T` under the namespace "cellmap"
 
@@ -53,7 +46,7 @@ class CellmapWrapper(GenericModel, Generic[T]):
     class Foo(BaseModel):
         bar: int
 
-    print(CellmapWrapper[Foo](cellmap={'bar': 10}).dict())
+    print(CellmapWrapper[Foo](cellmap={'bar': 10}).model_dump())
     # {'cellmap': {'bar': 10}}
     ```
 
@@ -62,7 +55,7 @@ class CellmapWrapper(GenericModel, Generic[T]):
     cellmap: T
 
 
-class AnnotationWrapper(GenericModel, Generic[T]):
+class AnnotationWrapper(BaseModel, Generic[T]):
     """
     A generic pydantic model that wraps the type `T` under the namespace "annotation"
 
@@ -81,7 +74,7 @@ class AnnotationWrapper(GenericModel, Generic[T]):
     class Foo(BaseModel):
         bar: int
 
-    print(AnnotationWrapper[Foo](annotation={'bar': 10}).dict())
+    print(AnnotationWrapper[Foo](annotation={'bar': 10}).model_dump())
     # {'annotation': {'bar': 10}}
     ```
     """
@@ -93,7 +86,7 @@ def wrap_attributes(attributes: T) -> CellmapWrapper[AnnotationWrapper[T]]:
     return CellmapWrapper(cellmap=AnnotationWrapper(annotation=attributes))
 
 
-class InstanceName(StrictBase):
+class InstanceName(BaseModel, extra='forbid'):
     long: str
     short: str
 
@@ -104,19 +97,19 @@ class Annotated(str, Enum):
     empty: str = "empty"
 
 
-class AnnotationState(StrictBase):
+class AnnotationState(BaseModel, extra='forbid'):
     present: bool
     annotated: Annotated
 
 
-class Label(StrictBase):
+class Label(BaseModel, extra='forbid'):
     value: int
     name: InstanceName
     annotationState: AnnotationState
     count: Optional[int]
 
 
-class LabelList(StrictBase):
+class LabelList(BaseModel, extra='forbid'):
     labels: List[Label]
     annotation_type: AnnotationType = "semantic"
 
@@ -175,7 +168,7 @@ classNameDict = {
 Possibility = Literal["unknown", "absent"]
 
 
-class SemanticSegmentation(StrictBase):
+class SemanticSegmentation(BaseModel, extra='forbid'):
     """
     Metadata for a semantic segmentation, i.e. a segmentation where unique
     numerical values represent separate semantic classes.
@@ -200,7 +193,7 @@ class SemanticSegmentation(StrictBase):
     encoding: Dict[Union[Possibility, Literal["present"]], int]
 
 
-class InstanceSegmentation(StrictBase):
+class InstanceSegmentation(BaseModel, extra='forbid'):
     """
     Metadata for instance segmentation, i.e. a segmentation where unique numerical
     values represent distinct occurrences of the same semantic class.
@@ -232,7 +225,7 @@ AnnotationType = Union[SemanticSegmentation, InstanceSegmentation]
 TName = TypeVar("TName", bound=str)
 
 
-class AnnotationArrayAttrs(GenericModel, Generic[TName]):
+class AnnotationArrayAttrs(BaseModel, Generic[TName]):
     """
     The metadata for an array of annotated values.
 
@@ -258,18 +251,13 @@ class AnnotationArrayAttrs(GenericModel, Generic[TName]):
     # this is array metadata because labels might disappear during downsampling
     annotation_type: AnnotationType
 
-    @root_validator()
-    def check_encoding(cls, values):
-        if (typ := values.get("type", False)) and (
-            counts := values.get("complement_counts", False)
-        ):
-            # check that everything in the complement_counts is encoded
-            assert set(typ.encoding.keys()).issuperset((counts.keys())), "Oh no"
-
-        return values
+    @model_validator(mode='after')
+    def check_encoding(self: "AnnotationArrayAttrs"):
+        assert set(self.annotation_type.encoding.keys()).issuperset((self.complement_counts.keys()))
+        return self
 
 
-class AnnotationGroupAttrs(GenericModel, Generic[TName]):
+class AnnotationGroupAttrs(BaseModel, Generic[TName]):
     """
     The metadata for an individual annotated semantic class.
     In a storage hierarchy like zarr or hdf5, this metadata is associated with a
@@ -288,8 +276,10 @@ class AnnotationGroupAttrs(GenericModel, Generic[TName]):
     class_name: TName
     annotation_type: AnnotationType
 
+def serialize_date(value: date) -> str:
+    return value.isoformat()
 
-class CropGroupAttrs(GenericModel, Generic[TName]):
+class CropGroupAttrs(BaseModel, Generic[TName], validate_assignment=True):
     """
     The metadata for all annotations in zarr group representing a single crop.
 
@@ -322,11 +312,7 @@ class CropGroupAttrs(GenericModel, Generic[TName]):
         group that contains this metadata.
     """
 
-    class Config:
-        frozen = True
-        validate_assignment = True
-
-    version: Literal["0.1.1"] = Field("0.1.1", allow_mutation=False)
+    version: Literal["0.1.1"] = "0.1.1"
     name: Optional[str]
     description: Optional[str]
     created_by: list[str]
@@ -337,16 +323,13 @@ class CropGroupAttrs(GenericModel, Generic[TName]):
     protocol_uri: Optional[str]
     class_names: list[TName]
 
-    def dict(self, **kwargs):
-        out = {}
-        for key, value in super().dict(**kwargs).items():
-            if isinstance(value, date):
-                _value = str(value)
-            else:
-                _value = value
-            out[key] = _value
-        return out
+    @field_serializer('start_date')
+    def ser_end_date(value: date):
+        return serialize_date(value)
 
+    @field_serializer('end_date')
+    def ser_start_date(value: date):
+        return serialize_date(value)
 
 class AnnotationArray(ArraySpec):
     """
@@ -355,7 +338,7 @@ class AnnotationArray(ArraySpec):
 
     Attributes
     ----------
-    attrs : CellmapWrapper[AnnotationWrapper[AnnotationArrayAttrs]]
+    attributes : CellmapWrapper[AnnotationWrapper[AnnotationArrayAttrs]]
         Metadata describing the annotated class, which is nested
         under two outer dicts that define the namespace of this metadata,
         i.e. `{'cellmap': {'annotation': {...}}}`.
@@ -363,7 +346,7 @@ class AnnotationArray(ArraySpec):
         details of the wrapped metadata.
     """
 
-    attrs: CellmapWrapper[AnnotationWrapper[AnnotationArrayAttrs]]
+    attributes: CellmapWrapper[AnnotationWrapper[AnnotationArrayAttrs]]
 
 
 class AnnotationGroup(GroupSpec):
@@ -373,7 +356,7 @@ class AnnotationGroup(GroupSpec):
 
     Attributes
     ----------
-    attrs : CellmapWrapper[AnnotationWrapper[AnnotationGroupAttrs]]
+    attributes : CellmapWrapper[AnnotationWrapper[AnnotationGroupAttrs]]
         A dict describing the annotation, which is nested
         under two outer dicts that define the namespace of this metadata,
         i.e. `{'cellmap': {'annotation': {...}}}`.
@@ -381,7 +364,7 @@ class AnnotationGroup(GroupSpec):
         details of the wrapped metadata.
     """
 
-    attrs: CellmapWrapper[AnnotationWrapper[AnnotationGroupAttrs]]
+    attributes: CellmapWrapper[AnnotationWrapper[AnnotationGroupAttrs]]
     members: Dict[str, AnnotationArray]
 
 
@@ -394,7 +377,7 @@ class CropGroup(GroupSpec):
 
     Attributes
     ----------
-    attrs : CellmapWrapper[AnnotationWrapper[CropGroupAttrs]]
+    attributes : CellmapWrapper[AnnotationWrapper[CropGroupAttrs]]
         A dict describing all annotations contained within the group, which is nested
          under two outer dicts that define the namespace of this metadata,
          i.e. `{'cellmap': {'annotation': {...}}}`. See
@@ -406,5 +389,5 @@ class CropGroup(GroupSpec):
 
     """
 
-    attrs: CellmapWrapper[AnnotationWrapper[CropGroupAttrs]]
+    attributes: CellmapWrapper[AnnotationWrapper[CropGroupAttrs]]
     members: Mapping[str, AnnotationGroup]
