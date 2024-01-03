@@ -1,6 +1,6 @@
 from typing import Literal, Tuple, Union
 import click
-from pydantic_zarr import ArraySpec, GroupSpec, from_zarr
+from pydantic_zarr.v2 import ArraySpec, GroupSpec, from_zarr
 from pydantic import ValidationError
 from cellmap_schemas import annotation
 from cellmap_schemas.multiscale import cosem, neuroglancer_n5
@@ -22,6 +22,10 @@ def cli():
 def validate(
     cls: Union[GroupSpec, ArraySpec], node: Union[zarr.Array, zarr.Group], console: Console
 ):
+    """
+    Attempt to validate a Zarr array or group against a model (a `pydantic_zarr.GroupSpec` or `pydantic_zarr.ArraySpec`).
+    The result of the validation (success or failure) is printed to the terminal.
+    """
     class_name = f"{cls.__module__}.{cls.__name__}"
     protocol = "file"
     if hasattr(node.store, "fs"):
