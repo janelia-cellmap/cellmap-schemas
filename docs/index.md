@@ -38,6 +38,65 @@ ngroup = Group(
 
 ```
 
+## Example: validating a container with the cli
+
+This package ships with a command-line tool than can be used for inspection or validation of N5 / Zarr containers.
+
+### `cellmap-schemas inspect`
+
+The command `cellmap-schemas inspect <url>` will print a summary of a Zarr array or group located at `<url>` to the command line.
+
+In the following example, we create an array locally, then inspect it:
+
+```python
+import zarr
+store = zarr.NestedDirectoryStore('/tmp/tmp.zarr')
+array = zarr.open(store, path='test', shape=(10,10))
+array.attrs.put({'foo': 10})
+```
+
+```bash
+$ cellmap-schemas inspect /tmp/tmp.zarr/test
+```
+
+<img src="./static/cellmap_schemas_inspect_example_local_array.png" width=300  alt="cellmap-schemas inspect example local array output"/>
+
+We can also inspect the group that contains this array:
+
+```bash
+$ cellmap-schemas inspect /tmp/tmp.zarr/
+```
+
+<img src="./static/cellmap_schemas_inspect_example_local_group.png" width=300  alt="cellmap-schemas inspect example local group output"/>
+
+And we can inspect arrays or groups on cloud storage, too. Here we inspect an array (inspecting the group containing this array would produce too much text).
+
+```bash
+$ cellmap-schemas inspect s3://janelia-cosem-datasets/jrc_hela-2/jrc_hela-2.n5/em/fibsem-uint16/s0
+```
+
+<img src="./static/cellmap_schemas_inspect_example_s3_array.png" width=300  alt="cellmap-schemas inspect example output"/>
+
+### `cellmap-schemas check`
+
+The command `cellmap-schemas check <url> <model>` will attempt to validate the Zarr array or group located at `<url>` with `<model>`, where `<model>` is the name of a class in `cellmap-schemas`. When model validation fails, the validation error will be printed. When model validation succeeds, a small confirmation message is printed.
+
+The Zarr array created in the earlier example will fail validation against the `mulitscale.cosem.Array` model:
+
+```bash
+$ cellmap-schemas check /tmp/tmp.zarr/test multiscale.cosem.Array
+```
+
+<img src="./static/cellmap_schemas_check_example_local_array.png" alt="cellmap-schemas check example local array output"/>
+
+But this N5 array stored on s3 passes validation:
+
+```bash
+$ cellmap-schemas check s3://janelia-cosem-datasets/jrc_hela-2/jrc_hela-2.n5/em/fibsem-uint16/s0 multiscale.cosem.Array
+```
+
+<img src="./static/cellmap_schemas_check_example_s3_array.png" alt="cellmap-schemas check example output"/>
+
 # Installation
 
 `pip install -U cellmap-schemas`
