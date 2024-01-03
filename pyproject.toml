@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cellmap-schemas"
-version = "0.1.4"
+version = "0.3.0"
 description = "Schemas for data used by the Cellmap project team at Janelia Research Campus."
 authors = ["Davis Vann Bennett <davis.v.bennett@gmail.com>"]
 readme = "README.md"
