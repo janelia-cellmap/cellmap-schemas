@@ -4,9 +4,9 @@ in N5 groups. See Neuroglancer's [N5-specific documentation](https://github.com/
 for details on what Neuroglancer expects when it reads N5 data.
 """
 
-from typing import Any, Dict, Sequence
-from pydantic import BaseModel, PositiveInt, root_validator, validator
-from pydantic_zarr.core import GroupSpec, ArraySpec
+from typing import Annotated, Sequence
+from pydantic import BaseModel, PositiveInt, model_validator, AfterValidator
+from pydantic_zarr.v2 import GroupSpec, ArraySpec
 import zarr
 
 
@@ -96,124 +96,54 @@ class GroupMetadata(BaseModel):
     scales: Sequence[Sequence[PositiveInt]]
     pixelResolution: PixelResolution
 
-    @root_validator
-    def check_dimensionality(cls, values: Dict[str, Any]):
-        axes = values.get("axes")
-        units = values.get("units")
-        scales = values.get("scales")
-        pixr = values.get("pixelResolution")
-        if not len(axes) == len(units):
-            raise ValueError(
-                f"The number of elements in `axes` ({len(axes)}) does not"
-                f"match the number of elements in `units` ({len(units)})."
+    @model_validator(mode="after")
+    def check_dimensionality(self: "GroupMetadata"):
+        if not len(self.axes) == len(self.units):
+            msg = (
+                f"The number of elements in `axes` ({len(self.axes)}) does not"
+                f"match the number of elements in `units` ({len(self.units)})."
             )
-        for idx, scale in enumerate(scales):
+            raise ValueError(msg)
+        for idx, scale in enumerate(self.scales):
             if idx == 0 and not all(s == 1 for s in scale):
-                raise ValueError(
-                    f"The first element of `scales` must be all 1s. Got {scale}" " instead."
-                )
-            if not len(scale) == len(axes):
-                raise ValueError(
-                    f"The number of elements in `axes` ({len(axes)}) does not"
+                msg = f"The first element of `scales` must be all 1s. Got {scale} instead."
+                raise ValueError(msg)
+            if not len(scale) == len(self.axes):
+                msg = (
+                    f"The number of elements in `axes` ({len(self.axes)}) does not"
                     f"match the number of elements in the {idx}th element in `scales`"
-                    f"({len(units)})."
+                    f"({len(self.units)})."
                 )
 
-        if not len(pixr.dimensions) == len(axes):
+                raise ValueError(msg)
+
+        if not len(self.pixelResolution.dimensions) == len(self.axes):
             raise ValueError(
-                f"The number of elements in `axes` ({len(axes)})"
+                f"The number of elements in `axes` ({len(self.axes)})"
                 "does not match the number of elements in `pixelResolution.dimensions`"
-                f"({len(pixr.dimensions)})"
+                f"({len(self.pixelResolution.dimensions)})"
             )
 
-        for idx, u in enumerate(units):
-            if not u == pixr.unit:
-                raise ValueError(
+        for idx, u in enumerate(self.units):
+            if not u == self.pixelResolution.unit:
+                msg = (
                     f"The {idx}th element of `units` ({u}) does not "
-                    f"match `pixelResolution.unit` ({pixr.unit})"
+                    f"match `pixelResolution.unit` ({self.pixelResolution.unit})"
                 )
+                raise ValueError(msg)
 
-        return values
+        return self
 
 
-class Group(GroupSpec):
-    """
-    A `GroupSpec` representing the structure of a N5 group with
-    neuroglancer-compatible structure and metadata.
-
-    Attributes
-    ----------
-
-    attrs : GroupMetadata
-            The metadata required to convey to neuroglancer that this group represents a
-            multiscale image.
-    members : Dict[str, Union[GroupSpec, ArraySpec]]
-            The members of this group. Arrays must be consistent with the `scales` attribute
-            in `attrs`.
-
-    """
-
-    attrs: GroupMetadata
-    members: dict[str, ArraySpec]
-
-    @root_validator
-    def check_scales(cls, values: dict[str, Any]):
-        if "attrs" in values and "members" in values:
-            scales = values.get("attrs").scales
-            members = values.get("members")
-
-            for level in range(len(scales)):
-                name_expected = f"s{level}"
-                if name_expected not in members:
-                    raise ValueError(
-                        f"Expected to find {name_expected} in `members` but it is missing. "
-                        f"members[{name_expected}] should be an array."
-                    )
-                elif not isinstance(members[name_expected], ArraySpec):
-                    raise ValueError(
-                        f"members[{name_expected}] should be an array. Got {type(members[name_expected])} instead."
-                    )
-
-        return values
-
-    @validator("members")
-    def validate_members(cls, v: dict[str, ArraySpec]) -> dict[str, ArraySpec]:
-        # check that the names of the arrays are s0, s1, s2, etc
-        for key, spec in v.items():
-            assert check_scale_level_name(key)
-        # check that dtype is uniform
-        assert len(set(a.dtype for a in v.values())) == 1
-        # check that dimensionality is uniform
-        assert len(set(len(a.shape) for a in v.values())) == 1
-        return v
-
-    @classmethod
-    def from_zarr(cls, node: zarr.Group):
-        """
-        Create an instance of `Group` from a Zarr group. This method will
-        raise an exception if the Zarr group is not backed by one of the N5-compatible
-        stores (`zarr.N5Store`, `zarr.N5FSStore`).
-
-        Parameters
-        ----------
-
-        node: zarr.Group
-                A Zarr group. Should be backed by N5-formatted storage.
-
-        Returns
-        -------
-
-        An instance of `Group`.
-        """
-        if not isinstance(node.store, (zarr.N5FSStore, zarr.N5Store)):
-            raise ValueError(
-                f"{cls.__name__} must be using an N5-compatible storage backend, "
-                f"namely zarr.N5FSStore or zarr.N5Store. Got {node.store.__class__} "
-                "instead"
-            )
-        else:
-            base = GroupSpec.from_zarr(node).dict()
-            return cls(**base)
+def check_members(members: dict[str, ArraySpec]) -> dict[str, ArraySpec]:
+    # check that the names of the arrays are s0, s1, s2, etc
+    for key, spec in members.items():
+        assert check_scale_level_name(key)
+    # check that dtype is uniform
+    assert len(set(a.dtype for a in members.values())) == 1
+    # check that dimensionality is uniform
+    assert len(set(len(a.shape) for a in members.values())) == 1
+    return members
 
 
 def check_scale_level_name(name: str) -> bool:
@@ -245,3 +175,71 @@ def check_scale_level_name(name: str) -> bool:
     else:
         valid = False
     return valid
+
+
+class Group(GroupSpec):
+    """
+    A `GroupSpec` representing the structure of a N5 group with
+    neuroglancer-compatible structure and metadata.
+
+    Attributes
+    ----------
+
+    attributes : GroupMetadata
+            The metadata required to convey to neuroglancer that this group represents a
+            multiscale image.
+    members : Dict[str, Union[GroupSpec, ArraySpec]]
+            The members of this group. Arrays must be consistent with the `scales` attribute
+            in `attributes`.
+
+    """
+
+    attributes: GroupMetadata
+    members: Annotated[dict[str, ArraySpec], AfterValidator(check_members)]
+
+    @model_validator(mode="after")
+    def check_scales(self: "Group"):
+        scales = self.attributes.scales
+        members = self.members
+
+        for level in range(len(scales)):
+            name_expected = f"s{level}"
+            if name_expected not in members:
+                raise ValueError(
+                    f"Expected to find {name_expected} in `members` but it is missing. "
+                    f"members[{name_expected}] should be an array."
+                )
+            elif not isinstance(members[name_expected], ArraySpec):
+                raise ValueError(
+                    f"members[{name_expected}] should be an array. Got {type(members[name_expected])} instead."
+                )
+
+        return self
+
+    @classmethod
+    def from_zarr(cls, node: zarr.Group):
+        """
+        Create an instance of `Group` from a Zarr group. This method will
+        raise an exception if the Zarr group is not backed by one of the N5-compatible
+        stores (`zarr.N5Store`, `zarr.N5FSStore`).
+
+        Parameters
+        ----------
+
+        node: zarr.Group
+                A Zarr group. Should be backed by N5-formatted storage.
+
+        Returns
+        -------
+
+        An instance of `Group`.
+        """
+        if not isinstance(node.store, (zarr.N5FSStore, zarr.N5Store)):
+            raise ValueError(
+                f"{cls.__name__} must be using an N5-compatible storage backend, "
+                f"namely zarr.N5FSStore or zarr.N5Store. Got {node.store.__class__} "
+                "instead"
+            )
+        else:
+            base = GroupSpec.from_zarr(node).model_dump()
+            return cls(**base)
