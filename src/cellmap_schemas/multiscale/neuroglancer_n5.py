@@ -6,8 +6,9 @@ for details on what Neuroglancer expects when it reads N5 data.
 
 from typing import Annotated, Sequence
 from pydantic import BaseModel, PositiveInt, model_validator, AfterValidator
-from pydantic_zarr.v2 import GroupSpec, ArraySpec
-import zarr
+from pydantic_zarr.v2 import ArraySpec
+
+from cellmap_schemas.n5_wrap import N5GroupSpec
 
 
 class PixelResolution(BaseModel):
@@ -177,7 +178,7 @@ def check_scale_level_name(name: str) -> bool:
     return valid
 
 
-class Group(GroupSpec):
+class Group(N5GroupSpec):
     """
     A `GroupSpec` representing the structure of a N5 group with
     neuroglancer-compatible structure and metadata.
@@ -215,31 +216,3 @@ class Group(GroupSpec):
                 )
 
         return self
-
-    @classmethod
-    def from_zarr(cls, node: zarr.Group):
-        """
-        Create an instance of `Group` from a Zarr group. This method will
-        raise an exception if the Zarr group is not backed by one of the N5-compatible
-        stores (`zarr.N5Store`, `zarr.N5FSStore`).
-
-        Parameters
-        ----------
-
-        node: zarr.Group
-                A Zarr group. Should be backed by N5-formatted storage.
-
-        Returns
-        -------
-
-        An instance of `Group`.
-        """
-        if not isinstance(node.store, (zarr.N5FSStore, zarr.N5Store)):
-            raise ValueError(
-                f"{cls.__name__} must be using an N5-compatible storage backend, "
-                f"namely zarr.N5FSStore or zarr.N5Store. Got {node.store.__class__} "
-                "instead"
-            )
-        else:
-            base = GroupSpec.from_zarr(node).model_dump()
-            return cls(**base)
