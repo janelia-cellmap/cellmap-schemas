@@ -13,18 +13,19 @@ s3fs = "^2023.10.0"
 rich = "^13.7.0"
 
 
+
 [tool.poetry.group.docs.dependencies]
 mkdocs-material = "^9.4.2"
 mkdocstrings = {extras = ["python"], version = "^0.23.0"}
 
-
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4.2"
-
+coverage = "^7.4.0"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.7.1"
 pytest-examples = "^0.0.10"
+
 
 [build-system]
 requires = ["poetry-core"]

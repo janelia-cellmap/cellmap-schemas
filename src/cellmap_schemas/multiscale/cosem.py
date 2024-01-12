@@ -7,10 +7,12 @@ Note that the hierarchy convention modeled here will likely be superceded by con
 in the [OME-NGFF](https://ngff.openmicroscopy.org/) specification.
 """
 
-from typing import Annotated, List, Literal, Optional, Sequence
+from typing import Annotated, Dict, List, Literal, Optional, Sequence, Tuple
+import numpy as np
 from pydantic_zarr.v2 import GroupSpec, ArraySpec
 from pydantic import BaseModel, Field, model_validator
 from cellmap_schemas.multiscale import neuroglancer_n5
+from cellmap_schemas.multiscale.neuroglancer_n5 import PixelResolution
 
 
 class STTransform(BaseModel):
@@ -53,10 +55,10 @@ class STTransform(BaseModel):
     """
 
     order: Optional[Literal["C", "F"]] = "C"
-    axes: Sequence[str]
-    units: Sequence[str]
-    translate: Sequence[float]
-    scale: Sequence[float]
+    axes: Tuple[str, ...]
+    units: Tuple[str, ...]
+    translate: Tuple[float, ...]
+    scale: Tuple[float, ...]
 
     @model_validator(mode="after")
     def validate_argument_length(self: "STTransform"):
@@ -88,6 +90,17 @@ class ArrayMetadata(BaseModel):
     pixelResolution: neuroglancer_n5.PixelResolution
     transform: STTransform
 
+    @classmethod
+    def from_transform(cls, transform: STTransform):
+        """
+        Generate an instance of ArrayMetadata from an STTtransform`
+        """
+        if transform.order == "C":
+            pixr = PixelResolution(dimensions=transform.scale[::-1], unit=transform.units[-1])
+        else:
+            pixr = PixelResolution(dimensions=transform.scale, unit=transform.units[0])
+        return cls(transform=transform, pixelResolution=pixr)
+
     @model_validator(mode="after")
     def check_dimensionality(self: "ArrayMetadata"):
         """
@@ -101,7 +114,7 @@ class ArrayMetadata(BaseModel):
             msg = (
                 f"The `pixelResolution` and `transform` attributes are incompatible: "
                 f"the `unit` attribute of `pixelResolution` ({pixr.unit}) was not "
-                f"identical to ever element in `transform.units` ({tx.units})."
+                f"identical to every element in `transform.units` ({tx.units})."
             )
             raise ValueError(msg)
 
@@ -171,6 +184,16 @@ class MultiscaleMetadata(BaseModel):
     name: Optional[str] = None
     datasets: Sequence[ScaleMetadata]
 
+    @classmethod
+    def from_transforms(cls, transforms: Dict[str, STTransform], *, name: Optional[str] = None):
+        """
+        Create an instance of `MultiscaleMetadata` from a dict of `STTransform` and an optional name.
+        """
+        return cls(
+            name=name,
+            datasets=list(ScaleMetadata(path=key, transform=tx) for key, tx in transforms.items()),
+        )
+
 
 class GroupMetadata(neuroglancer_n5.GroupMetadata):
     """
@@ -195,6 +218,31 @@ class GroupMetadata(neuroglancer_n5.GroupMetadata):
     """
 
     multiscales: Annotated[List[MultiscaleMetadata], Field(..., max_length=1, min_length=1)]
+
+    @classmethod
+    def from_transforms(cls, transforms: Dict[str, STTransform], *, name: Optional[str] = None):
+        """
+        Create `MultiscaleMetadata` from a dict of `STTransform` and an optional name.
+        """
+        s0 = transforms["s0"]
+        if s0.order in ("C", None):
+            reorder = slice(None, None, -1)
+        else:
+            reorder = slice(0, None, 1)
+        scales = []
+
+        for scale in [a.scale for a in transforms.values()]:
+            scales.append([s // b for s, b in zip(scale, s0.scale)])
+
+        axes = s0.axes[reorder]
+        units = s0.units[reorder]
+        pixr = PixelResolution(dimensions=s0.scale[reorder], unit=units[0])
+
+        multiscales = MultiscaleMetadata.from_transforms(transforms, name=name)
+
+        return cls(
+            pixelResolution=pixr, axes=axes, units=units, multiscales=[multiscales], scales=scales
+        )
 
 
 class Array(ArraySpec):
@@ -227,7 +275,7 @@ class Array(ArraySpec):
         return self
 
 
-class Group(GroupSpec):
+class Group(neuroglancer_n5.Group):
     """
     A model of a multiscale N5 group used by COSEM/Cellmap for data presented on
     OpenOrganelle.
@@ -280,9 +328,11 @@ class Group(GroupSpec):
                     if member_array.attributes.transform != element.transform:
                         msg = (
                             "The `attributes` and `members` attributes are incompatible: "
-                            f"`attributes.multiscales[0].datasets[{idx}].transform` "
+                            f"`attributes.multiscales[0].datasets[{idx}].transform`: "
+                            f"({member_array.attributes.transform}) "
                             "does not match the `attributes.transform` attribute of the "
-                            f"correspdonding array described in members[{element.path}]"
+                            f"correspdonding array described in members[{element.path}]: "
+                            f"({element.transform})"
                         )
                         raise ValueError(msg)
                     if element.transform.order == "F":
@@ -305,3 +355,168 @@ class Group(GroupSpec):
                             raise ValueError(msg)
 
         return self
+
+    @classmethod
+    def from_arrays(cls, arrays: Dict[str, Array], *, name: Optional[str] = None):
+        """
+        Create a `Group` from a dict of `Array` instances
+        """
+
+        metadata = GroupMetadata.from_transforms(
+            {key: array.attributes.transform for key, array in arrays.items()}, name=name
+        )
+        return cls(attributes=metadata, members=arrays)
+
+
+def new_sttransform(
+    meta: STTransform,
+    *,
+    scale: Optional[Tuple[float, ...]] = None,
+    axes: Optional[Tuple[str, ...]] = None,
+    order: Optional[Literal["C", "F"]] = None,
+    translate: Optional[Tuple[float, ...]] = None,
+    units: Optional[Tuple[str, ...]] = None,
+) -> STTransform:
+    if scale is None:
+        scale = meta.scale
+    if axes is None:
+        axes = meta.axes
+    if order is None:
+        order = meta.order
+    if translate is None:
+        translate = meta.translate
+    if units is None:
+        units = meta.units
+
+    return STTransform(scale=scale, order=order, axes=axes, translate=translate, units=units)
+
+
+def new_multiscalemetadata(
+    meta: MultiscaleMetadata,
+    *,
+    scale: Optional[Tuple[float, ...]] = None,
+    axes: Optional[Tuple[str, ...]] = None,
+    order: Optional[Literal["C", "F"]] = None,
+    translate: Optional[Tuple[float, ...]] = None,
+    units: Optional[Tuple[str, ...]] = None,
+) -> MultiscaleMetadata:
+    new_datasets = []
+    for dataset in meta.datasets:
+        new_transform = new_sttransform(
+            dataset.transform, scale=scale, axes=axes, order=order, translate=translate, units=units
+        )
+        new_datasets.append(ScaleMetadata(path=dataset.path, transform=new_transform))
+
+    return MultiscaleMetadata(name=meta.name, datasets=new_datasets)
+
+
+def new_groupmetadata(
+    meta: GroupMetadata,
+    *,
+    scale: Optional[Tuple[float, ...]] = None,
+    axes: Optional[Tuple[str, ...]] = None,
+    order: Optional[Literal["C", "F"]] = None,
+    translate: Optional[Tuple[float, ...]] = None,
+    units: Optional[Tuple[str, ...]] = None,
+) -> GroupMetadata:
+    new_multiscales = [
+        new_multiscalemetadata(
+            meta=meta.multiscales[0],
+            scale=scale,
+            axes=axes,
+            order=order,
+            translate=translate,
+            units=units,
+        )
+        for m in meta.multiscales
+    ]
+
+    if axes is None:
+        axes = meta.axes
+    else:
+        if order == "C" or order is None:
+            axes = axes[::-1]
+
+    if units is None:
+        units = meta.units
+    else:
+        if order == "C" or order is None:
+            # reverse the order, because the top-level units attribute is F-ordered
+            units = units[::-1]
+
+    if scale is None:
+        pixelResolution = meta.pixelResolution
+    else:
+        if order == "C" or order is None:
+            # reverse the order, because the top-level units attribute is F-ordered
+            pixelResolution = PixelResolution(unit=units[0], dimensions=scale[::-1])
+        else:
+            pixelResolution = PixelResolution(unit=units[0], dimensions=scale)
+
+    return GroupMetadata(
+        axes=axes,
+        units=units,
+        scales=meta.scales,
+        pixelResolution=pixelResolution,
+        multiscales=new_multiscales,
+    )
+
+
+def change_coordinates(
+    group: Group,
+    *,
+    scale: Optional[Tuple[float, ...]] = None,
+    axes: Optional[Tuple[str, ...]] = None,
+    order: Optional[Literal["C", "F"]] = None,
+    translate: Optional[Tuple[float, ...]] = None,
+    units: Optional[Tuple[str, ...]] = None,
+):
+    """
+    Return a Group with new coordinates, i.e., new scale, axes, order, translate, or units. If any of these
+    paramters are set to None (the default), then the old values are used.
+
+    The `units`, `axes`, and `order` attributes can be changed globally.
+    The `scale` and `translation` changes will be applied to the largest image, then a scaling / translation vector will be calculated to express this change, and that
+    vector will be multiplied / added to the `scale` / `translation` attributes of all the other images.
+    """
+    # sort the group members by array size
+    members_sorted = {
+        key: array
+        for key, array in sorted(
+            group.members.items(), reverse=True, key=lambda v: np.prod(v[1].shape)
+        )
+    }
+    base_member = tuple(members_sorted.values())[0]
+    base_transform = base_member.attributes.transform
+    new_base_transform = new_sttransform(
+        base_transform, scale=scale, axes=axes, order=order, translate=translate, units=units
+    )
+    # if we started at 4 and end up at 8, then the scale_diff should be 2
+    scale_diff = [
+        a / b for a, b in zip(new_base_transform.scale, base_transform.scale, strict=True)
+    ]
+    # if we started at 0 and we are moved to 10, then the translation_diff should be +10
+    translate_diff = [
+        a - b for a, b in zip(new_base_transform.translate, base_transform.translate, strict=True)
+    ]
+    new_transforms = {}
+
+    for key, member in members_sorted.items():
+        old_tx = member.attributes.transform
+        new_scale = [a * b for a, b in zip(old_tx.scale, scale_diff, strict=True)]
+        new_trans = [a + b for a, b in zip(old_tx.translate, translate_diff, strict=True)]
+        new_transforms[key] = new_sttransform(
+            old_tx, scale=new_scale, translate=new_trans, order=order, units=units, axes=axes
+        )
+
+    new_groupmeta = GroupMetadata.from_transforms(
+        new_transforms, name=group.attributes.multiscales[0].name
+    )
+    new_members = {
+        key: member.model_copy(
+            deep=True, update={"attributes": ArrayMetadata.from_transform(new_transforms[key])}
+        )
+        for key, member in members_sorted.items()
+    }
+    new_group = Group(attributes=new_groupmeta, members=new_members)
+    return new_group
