@@ -308,7 +308,7 @@ class CropGroupAttrs(BaseModel, Generic[TName], validate_assignment=True):
     protocol_uri: Optional[str]
         A URI pointing to a description of the annotation protocol used to produce the
         annotations. Optional.
-    class_names: list[str]
+    class_names: list[TName]
         The names of the classes that are annotated in this crop. Each element from
         `class_names` should also be the name of a Zarr group stored under the Zarr
         group that contains this metadata.
