@@ -59,4 +59,9 @@ def test_cropgroup():
     observed = CropGroup.from_zarr(stored)
     assert observed == crop_group
 
-    ## todo: insert jsonschema validation step
+    # insert an extra group called "all"
+    extra_group_name = "all"
+    stored.create_group(extra_group_name)
+    observed_2 = CropGroup.from_zarr(stored)
+    assert extra_group_name not in observed_2.members
+    assert observed_2 == observed

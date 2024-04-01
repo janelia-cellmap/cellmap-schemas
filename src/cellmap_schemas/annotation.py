@@ -12,7 +12,6 @@ from __future__ import annotations
 from datetime import date
 from enum import Enum
 from typing import (
-    Dict,
     Generic,
     List,
     Literal,
@@ -22,7 +21,8 @@ from typing import (
     Union,
 )
 from pydantic_zarr.v2 import GroupSpec, ArraySpec
-from pydantic import BaseModel, model_validator, field_serializer
+from pydantic import BaseModel, ValidationError, model_validator, field_serializer
+import zarr
 
 T = TypeVar("T")
 
@@ -114,7 +114,7 @@ class LabelList(BaseModel, extra="forbid"):
     annotation_type: AnnotationType = "semantic"
 
 
-classNameDict = {
+classNamedict = {
     1: InstanceName(short="ECS", long="Extracellular Space"),
     2: InstanceName(short="Plasma membrane", long="Plasma membrane"),
     3: InstanceName(short="Mito membrane", long="Mitochondrial membrane"),
@@ -178,7 +178,7 @@ class SemanticSegmentation(BaseModel, extra="forbid"):
 
     type: Literal["semantic_segmentation"]
         Must be the string 'semantic_segmentation'.
-    encoding: Dict[Union[Possibility, Literal["present"]], int]
+    encoding: dict[Union[Possibility, Literal["present"]], int]
         This dict represents the mapping from possibilities to numeric values. The keys
         must be strings in the set `{'unknown', 'absent', 'present'}`, and the values
         must be numeric values contained in the array described by this metadata.
@@ -190,7 +190,7 @@ class SemanticSegmentation(BaseModel, extra="forbid"):
     """
 
     type: Literal["semantic_segmentation"] = "semantic_segmentation"
-    encoding: Dict[Union[Possibility, Literal["present"]], int]
+    encoding: dict[Union[Possibility, Literal["present"]], int]
 
 
 class InstanceSegmentation(BaseModel, extra="forbid"):
@@ -203,7 +203,7 @@ class InstanceSegmentation(BaseModel, extra="forbid"):
 
     type: Literal["instance_segmentation"]
         Must be the string "instance_segmentation"
-    encoding: Dict[Possibility, int]
+    encoding: dict[Possibility, int]
         This dict represents the mapping from possibilities to numeric values. The keys
         must be strings from the set `{'unknown', 'absent'}`, and the values
         must be numeric values contained in the array described by this metadata.
@@ -217,7 +217,7 @@ class InstanceSegmentation(BaseModel, extra="forbid"):
     """
 
     type: Literal["instance_segmentation"] = "instance_segmentation"
-    encoding: Dict[Possibility, int]
+    encoding: dict[Possibility, int]
 
 
 AnnotationType = Union[SemanticSegmentation, InstanceSegmentation]
@@ -234,7 +234,7 @@ class AnnotationArrayAttrs(BaseModel, Generic[TName]):
 
     class_name: str
         The name of the semantic class annotated in this array.
-    complement_counts: Optional[Dict[Possibility, int]]
+    complement_counts: Optional[dict[Possibility, int]]
         The frequency of 'absent' and / or 'missing' values in the array data.
         The total number of elements in the array that represent "positive" examples can
         be calculated from these counts -- take the number of elements in the array
@@ -246,7 +246,7 @@ class AnnotationArrayAttrs(BaseModel, Generic[TName]):
 
     class_name: TName
     # a mapping from values to frequencies
-    complement_counts: Optional[Dict[Possibility, int]]
+    complement_counts: Optional[dict[Possibility, int]]
     # a mapping from class names to values
     # this is array metadata because labels might disappear during downsampling
     annotation_type: AnnotationType
@@ -368,7 +368,7 @@ class AnnotationGroup(GroupSpec):
     """
 
     attributes: CellmapWrapper[AnnotationWrapper[AnnotationGroupAttrs]]
-    members: Dict[str, AnnotationArray]
+    members: dict[str, AnnotationArray]
 
 
 class CropGroup(GroupSpec):
@@ -394,3 +394,29 @@ class CropGroup(GroupSpec):
 
     attributes: CellmapWrapper[AnnotationWrapper[CropGroupAttrs]]
     members: Mapping[str, AnnotationGroup]
+
+    @classmethod
+    def from_zarr(cls, group: zarr.Group):
+        """
+        Generate a `CropGroup` from a `zarr.Group`. Sub-groups that do not pass validation as
+        `AnnotationGroup` will be ignored, as will sub-arrays.
+
+        Parameters
+        ----------
+        group : zarr.Group
+            A Zarr group that implements the `CropGroup` layout.
+
+        Returns
+        -------
+        CropGroup
+
+        """
+
+        untyped_group = GroupSpec.from_zarr(group)
+        keep = {}
+        for name, model in untyped_group.members.items():
+            try:
+                keep[name] = AnnotationGroup(**model.model_dump())
+            except ValidationError:
+                pass
+        return cls(attributes=untyped_group.attributes, members=keep)
