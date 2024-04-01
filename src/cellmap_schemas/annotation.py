@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import date
 from enum import Enum
 from typing import (
+    Any,
     Generic,
     List,
     Literal,
@@ -21,7 +22,7 @@ from typing import (
     Union,
 )
 from pydantic_zarr.v2 import GroupSpec, ArraySpec
-from pydantic import BaseModel, ValidationError, model_validator, field_serializer
+from pydantic import BaseModel, model_validator, field_serializer
 import zarr
 
 T = TypeVar("T")
@@ -412,11 +413,18 @@ class CropGroup(GroupSpec):
 
         """
 
-        untyped_group = GroupSpec.from_zarr(group)
+        untyped_group = GroupSpec[CellmapWrapper[AnnotationWrapper[CropGroupAttrs]], Any].from_zarr(
+            group
+        )
+        class_names = untyped_group.attributes.cellmap.annotation.class_names
         keep = {}
-        for name, model in untyped_group.members.items():
+        for name in class_names:
             try:
-                keep[name] = AnnotationGroup(**model.model_dump())
-            except ValidationError:
-                pass
+                keep[name] = untyped_group.members[name]
+            except KeyError as e:
+                msg = (
+                    f"Expected to find a group named {name} in {group.store}://{group.name}. "
+                    "No group was found with that name."
+                )
+                raise ValueError(msg) from e
         return cls(attributes=untyped_group.attributes, members=keep)
