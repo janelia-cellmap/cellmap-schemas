@@ -1,4 +1,6 @@
 from typing import Literal
+
+import pytest
 from cellmap_schemas.annotation import (
     AnnotationArray,
     AnnotationArrayAttrs,
@@ -59,4 +61,20 @@ def test_cropgroup():
     observed = CropGroup.from_zarr(stored)
     assert observed == crop_group
 
-    ## todo: insert jsonschema validation step
+    # insert an extra group called "all"
+    extra_group_name = "all"
+    stored.create_group(extra_group_name)
+    observed_2 = CropGroup.from_zarr(stored)
+    assert extra_group_name not in observed_2.members
+    assert observed_2 == observed
+
+    # remove a labelled group
+    to_remove = class_names[0]
+    del stored[to_remove]
+
+    match = (
+        f"Expected to find a group named {to_remove} in {stored.store}://{stored.name}. "
+        "No group was found with that name."
+    )
+    with pytest.raises(ValueError, match=match):
+        CropGroup.from_zarr(stored)
