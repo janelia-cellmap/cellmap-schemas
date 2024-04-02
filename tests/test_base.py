@@ -1,3 +1,4 @@
+from __future__ import annotations
 from cellmap_schemas.base import structure_equal
 
 

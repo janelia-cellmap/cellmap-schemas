@@ -1,3 +1,4 @@
+from __future__ import annotations
 import zarr
 from numcodecs import GZip
 from pydantic_zarr.v2 import GroupSpec

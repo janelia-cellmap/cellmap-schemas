@@ -6,7 +6,7 @@ that's compatible with the [Neuroglancer](https://github.com/google/neuroglancer
 Note that the hierarchy convention modeled here will likely be superceded by conventions defined
 in the [OME-NGFF](https://ngff.openmicroscopy.org/) specification.
 """
-
+from __future__ import annotations
 from typing import Annotated, Dict, List, Literal, Optional, Sequence, Tuple
 import numpy as np
 from pydantic_zarr.v2 import GroupSpec, ArraySpec
@@ -492,19 +492,15 @@ def change_coordinates(
         base_transform, scale=scale, axes=axes, order=order, translate=translate, units=units
     )
     # if we started at 4 and end up at 8, then the scale_diff should be 2
-    scale_diff = [
-        a / b for a, b in zip(new_base_transform.scale, base_transform.scale, strict=True)
-    ]
+    scale_diff = [a / b for a, b in zip(new_base_transform.scale, base_transform.scale)]
     # if we started at 0 and we are moved to 10, then the translation_diff should be +10
-    translate_diff = [
-        a - b for a, b in zip(new_base_transform.translate, base_transform.translate, strict=True)
-    ]
+    translate_diff = [a - b for a, b in zip(new_base_transform.translate, base_transform.translate)]
     new_transforms = {}
 
     for key, member in members_sorted.items():
         old_tx = member.attributes.transform
-        new_scale = [a * b for a, b in zip(old_tx.scale, scale_diff, strict=True)]
-        new_trans = [a + b for a, b in zip(old_tx.translate, translate_diff, strict=True)]
+        new_scale = [a * b for a, b in zip(old_tx.scale, scale_diff)]
+        new_trans = [a + b for a, b in zip(old_tx.translate, translate_diff)]
         new_transforms[key] = new_sttransform(
             old_tx, scale=new_scale, translate=new_trans, order=order, units=units, axes=axes
         )

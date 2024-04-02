@@ -1,3 +1,4 @@
+from __future__ import annotations
 from pydantic_zarr.v2 import ArraySpec, GroupSpec
 from typing import overload, Union
 
