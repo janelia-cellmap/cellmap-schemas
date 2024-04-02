@@ -2,13 +2,13 @@
 
 [[package]]
 name = "aiobotocore"
-version = "2.12.2"
+version = "2.12.1"
 description = "Async client for aws services using botocore and aiohttp"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "aiobotocore-2.12.2-py3-none-any.whl", hash = "sha256:eb595362cfa6cd70e2940766e3945b114e2522168b67096b0dbc3067f7fd60ad"},
-    {file = "aiobotocore-2.12.2.tar.gz", hash = "sha256:41160f33cdada96815be7d180d1a2405fbf03f0364bac88c03d6ff1ad2cd83d7"},
+    {file = "aiobotocore-2.12.1-py3-none-any.whl", hash = "sha256:6a9a3d646cf422f45fdc1e4256e78563ebffba64733bc9b8ca9123614e8ba9af"},
+    {file = "aiobotocore-2.12.1.tar.gz", hash = "sha256:8706b28f16f93c541f6ed50352115a79d8f3499539f8d0bb70aa0f7a5379c1fe"},
 ]
 
 [package.dependencies]
@@ -478,20 +478,6 @@ files = [
 toml = ["tomli"]
 
 [[package]]
-name = "eval-type-backport"
-version = "0.1.3"
-description = "Like `typing._eval_type`, but lets older Python versions use newer typing features."
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "eval_type_backport-0.1.3-py3-none-any.whl", hash = "sha256:519d2a993b3da286df9f90e17f503f66435106ad870cf26620c5720e2158ddf2"},
-    {file = "eval_type_backport-0.1.3.tar.gz", hash = "sha256:d83ee225331dfa009493cec1f3608a71550b515ee4749abe78da14e3c5e314f5"},
-]
-
-[package.extras]
-tests = ["pytest"]
-
-[[package]]
 name = "exceptiongroup"
 version = "1.2.0"
 description = "Backport of PEP 654 (exception groups)"
@@ -919,13 +905,13 @@ mkdocs = ">=1.1"
 
 [[package]]
 name = "mkdocs-material"
-version = "9.5.17"
+version = "9.5.16"
 description = "Documentation that simply works"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "mkdocs_material-9.5.17-py3-none-any.whl", hash = "sha256:14a2a60119a785e70e765dd033e6211367aca9fc70230e577c1cf6a326949571"},
-    {file = "mkdocs_material-9.5.17.tar.gz", hash = "sha256:06ae1275a72db1989cf6209de9e9ecdfbcfdbc24c58353877b2bb927dbe413e4"},
+    {file = "mkdocs_material-9.5.16-py3-none-any.whl", hash = "sha256:32fce3cd8ecbd5dca6e5887cc0cf5bc78707a36f7d0f6f1bbbe9edaf428b8055"},
+    {file = "mkdocs_material-9.5.16.tar.gz", hash = "sha256:8b89b639592660f24657bb058de4aff0060cd0383148f8f51711201730f17503"},
 ]
 
 [package.dependencies]
@@ -1415,17 +1401,16 @@ typing-extensions = ">=4.6.0,<4.7.0 || >4.7.0"
 
 [[package]]
 name = "pydantic-zarr"
-version = "0.7.0"
+version = "0.5.2"
 description = "pydantic models for zarr"
 optional = false
-python-versions = "<4.0,>=3.9"
+python-versions = ">=3.9,<4.0"
 files = [
-    {file = "pydantic_zarr-0.7.0-py3-none-any.whl", hash = "sha256:8fafb481e7dfa77b3202b91937b777b266387d03e9f6dad5b7eaeca3ae4b5baf"},
-    {file = "pydantic_zarr-0.7.0.tar.gz", hash = "sha256:fdb0129722d5a3454f5107de56ec8370a7dc8ccb3fa34f2729632ed4f8da3acd"},
+    {file = "pydantic_zarr-0.5.2-py3-none-any.whl", hash = "sha256:f3ce020d38979ee30c8dba9be32a7441ca8cac2e19302236f396f6f728bc1e73"},
+    {file = "pydantic_zarr-0.5.2.tar.gz", hash = "sha256:d88c2214ff8b2b95ebbc639e240768701cb539fea8e58ac2142a9d5fa7a97064"},
 ]
 
 [package.dependencies]
-eval-type-backport = ">=0.1.3,<0.2.0"
 pydantic = ">=2.0.0,<3.0.0"
 typing-extensions = {version = ">=4.7.1,<5.0.0", markers = "python_version < \"3.12\""}
 zarr = ">=2.14.2,<3.0.0"
@@ -2104,4 +2089,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "bb583d8b1ca433374294d22ecf19a04cd051f1e7443703ff58ebe5d473fa0852"
+content-hash = "937c70d0dfa9b175bd91cada313c4143c50dbb2f590aea2a52558c48b397cdef"

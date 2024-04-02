@@ -8,9 +8,11 @@ packages = [{include = "cellmap_schemas", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
-pydantic-zarr = "^0.7.0"
+pydantic-zarr = "^0.5.2"
 s3fs = "^2023.10.0"
 rich = "^13.7.0"
+
+
 
 [tool.poetry.group.docs.dependencies]
 mkdocs-material = "^9.4.2"
