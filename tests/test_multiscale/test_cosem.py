@@ -137,9 +137,9 @@ def test_multiscale_meta_from_transforms(
 
     expected = MultiscaleMetadata(
         name=name,
-        datasets=[ScaleMetadata(path=key, transform=tx) for key, tx in transforms.items()],
+        datasets=tuple(ScaleMetadata(path=key, transform=tx) for key, tx in transforms.items()),
     )
-    assert MultiscaleMetadata.from_transforms(transforms, name=name) == expected
+    assert MultiscaleMetadata.from_transforms(transforms=transforms, name=name) == expected
 
 
 @pytest.mark.parametrize("name", [None, "bar"])
@@ -174,7 +174,7 @@ def test_groupmetadata_from_transforms(order: Literal["C", "F"], name: Optional[
         scales=[[1, 1, 1], [2, 2, 2]],
         units=units[reorder],
         pixelResolution=PixelResolution(unit=units[reorder][0], dimensions=scale[reorder]),
-        multiscales=[MultiscaleMetadata.from_transforms(transforms, name=name)],
+        multiscales=[MultiscaleMetadata.from_transforms(transforms=transforms, name=name)],
     )
 
     observed = GroupMetadata.from_transforms(transforms, name=name)
@@ -274,25 +274,28 @@ def test_multiscale_group_from_arrays(order: Literal["C", "F"], name: Optional[s
         ),
     }
 
-    arrays = {
-        "s0": Array.from_array(
-            np.zeros((10, 10, 10)), attributes=ArrayMetadata.from_transform(transforms["s0"])
-        ),
-        "s1": Array.from_array(
-            np.zeros((5, 5, 5)), attributes=ArrayMetadata.from_transform(transforms["s1"])
-        ),
-    }
+    arrays = {"s0": np.zeros((10, 10, 10)), "s1": np.zeros((5, 5, 5))}
 
     groupMeta = GroupMetadata(
         axes=axes[reorder],
         scales=[[1, 1, 1], [2, 2, 2]],
         units=units[reorder],
         pixelResolution=PixelResolution(unit=units[reorder][0], dimensions=scale[reorder]),
-        multiscales=[MultiscaleMetadata.from_transforms(transforms)],
+        multiscales=[MultiscaleMetadata.from_transforms(transforms=transforms)],
     )
 
-    expected = Group(attributes=groupMeta, members=arrays)
-    observed = Group.from_arrays(arrays)
+    expected = Group(
+        attributes=groupMeta,
+        members={
+            key: Array.from_array(
+                array=array, attributes=ArrayMetadata.from_transform(transform=transforms[key])
+            )
+            for key, array in arrays.items()
+        },
+    )
+    observed = Group.from_arrays(
+        arrays=arrays.values(), paths=arrays.keys(), transforms=transforms.values()
+    )
     assert expected == observed
 
 
@@ -369,17 +372,11 @@ def test_change_coordinates_3d(
 
     transforms_expected = {"s0": tx_s0_expected, "s1": tx_s1_expected}
 
-    arrays = {
-        "s0": Array.from_array(
-            np.zeros((10, 10, 10)),
-            attributes=ArrayMetadata.from_transform(transforms_expected["s0"]),
-        ),
-        "s1": Array.from_array(
-            np.zeros((5, 5, 5)), attributes=ArrayMetadata.from_transform(transforms_expected["s1"])
-        ),
-    }
+    arrays = {"s0": np.zeros((10, 10, 10)), "s1": np.zeros((5, 5, 5))}
 
-    source_spec = Group.from_arrays(arrays)
+    source_spec = Group.from_arrays(
+        arrays=arrays.values(), paths=arrays.keys(), transforms=transforms_expected.values()
+    )
 
     new_spec = change_coordinates(
         source_spec, axes=axes, order=order, translate=translate, scale=scale, units=units
