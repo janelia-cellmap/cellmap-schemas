@@ -6,7 +6,7 @@ that's compatible with the [Neuroglancer](https://github.com/google/neuroglancer
 Note that the hierarchy convention modeled here will likely be superceded by conventions defined
 in the [OME-NGFF](https://ngff.openmicroscopy.org/) specification.
 """
-
+from __future__ import annotations
 from typing import Annotated, Dict, List, Literal, Optional, Sequence, Tuple
 import numpy as np
 from pydantic_zarr.v2 import GroupSpec, ArraySpec

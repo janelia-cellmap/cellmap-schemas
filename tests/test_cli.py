@@ -1,3 +1,4 @@
+from __future__ import annotations
 from cellmap_schemas.cli import parse_url
 import pytest
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Any, Literal, Tuple, Union, cast
 import click
 from pydantic_zarr.v2 import ArraySpec, GroupSpec, from_zarr

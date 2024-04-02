@@ -3,7 +3,7 @@ This module contains Pydantic models for Neuroglancer-compatible multiscale imag
 in N5 groups. See Neuroglancer's [N5-specific documentation](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/n5) 
 for details on what Neuroglancer expects when it reads N5 data.
 """
-
+from __future__ import annotations
 from typing import Annotated, Sequence
 from pydantic import BaseModel, PositiveInt, model_validator, AfterValidator
 from pydantic_zarr.v2 import ArraySpec
