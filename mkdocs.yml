@@ -33,6 +33,7 @@ theme:
 nav:
     - About: index.md
     - Cellmap cloud storage conventions: cellmap-conventions/s3-overview.md
+    - Cellmap annotation storage conventions: cellmap-conventions/annotation.md
     - Development: development.md
     - API documentation:
       - multiscale image hierarchies:
