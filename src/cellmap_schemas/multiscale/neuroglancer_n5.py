@@ -4,8 +4,11 @@ in N5 groups. See Neuroglancer's [N5-specific documentation](https://github.com/
 for details on what Neuroglancer expects when it reads N5 data.
 """
 from __future__ import annotations
-from typing_extensions import Self
-from typing import Any, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
+
+if TYPE_CHECKING:
+    from typing_extensions import Self, Type, Literal
+    from numcodecs.abc import Codec
 from pydantic import BaseModel, PositiveInt, model_validator
 from pydantic_zarr.v2 import ArraySpec, GroupSpec
 
@@ -63,6 +66,13 @@ class PixelResolution(BaseModel):
     unit: str
 
 
+class ArrayMetadata(BaseModel):
+    pixelResolution: PixelResolution
+
+
+Array = ArraySpec[ArrayMetadata]
+
+
 # todo: validate argument lengths
 class GroupMetadata(BaseModel):
     """
@@ -107,17 +117,16 @@ class GroupMetadata(BaseModel):
                 f"match the number of elements in `units` ({len(self.units)})."
             )
             raise ValueError(msg)
-        for idx, scale in enumerate(self.scales):
-            if idx == 0 and not all(s == 1 for s in scale):
-                msg = f"The first element of `scales` must be all 1s. Got {scale} instead."
-                raise ValueError(msg)
+        if not all(s == 1 for s in self.scales[0]):
+            msg = f"The first element of `scales` must be all 1s. Got {self.scales[0]} instead."
+            raise ValueError(msg)
+        for idx, scale in tuple(enumerate(self.scales)):
             if not len(scale) == len(self.axes):
                 msg = (
                     f"The number of elements in `axes` ({len(self.axes)}) does not"
                     f"match the number of elements in the {idx}th element in `scales`"
                     f"({len(self.units)})."
                 )
-
                 raise ValueError(msg)
 
         if not len(self.pixelResolution.dimensions) == len(self.axes):
@@ -155,26 +164,53 @@ class Group(N5GroupSpec):
     """
 
     attributes: GroupMetadata
-    members: dict[str, ArraySpec | GroupSpec]
+    members: dict[str, Array | GroupSpec]
 
     @classmethod
     def from_arrays(
-        cls: Self,
+        cls: Type[Self],
+        *,
         arrays: Sequence[NDArray[Any]],
         paths: Sequence[str],
         axes: Sequence[str],
-        scales: Sequence[float],
-        units: str,
-    ):
-        scale_ratios = tuple(tuple(a // b for a, b in zip(scale, scales[0])) for scale in scales)
+        scales: Sequence[Sequence[float]],
+        units: Sequence[str],
+        chunks: tuple[int, ...] | tuple[tuple[int, ...]] | Literal["auto"] = "auto",
+        compressor: Codec | None | Literal["auto"] = "auto",
+        dimension_order: Literal["C", "F"],
+    ) -> Self:
+        if dimension_order == "C":
+            # this will flip the axes, units, and scales before writing metadata
+            indexer = slice(-1, None, -1)
+        else:
+            # this preserves the input order of dimensional attributes
+            indexer = slice(None)
+
+        axes_parsed = tuple(axes[indexer])
+        scales_parsed = tuple(tuple(s)[indexer] for s in scales)
+        units_parsed = tuple(units[indexer])
+
+        scale_ratios = tuple(
+            tuple(int(a // b) for a, b in zip(scale, scales_parsed[0])) for scale in scales_parsed
+        )
 
         attributes = GroupMetadata(
-            axes=axes,
-            units=units,
+            axes=axes_parsed,
+            units=units_parsed,
             scales=scale_ratios,
-            pixelResolution=PixelResolution(unit=units[0], dimensions=scales[0]),
+            pixelResolution=PixelResolution(unit=units_parsed[0], dimensions=scales_parsed[0]),
         )
-        members = dict(zip(paths, arrays))
+        members = {
+            path: Array.from_array(
+                attributes=ArrayMetadata(
+                    pixelResolution=PixelResolution(dimensions=scale, unit=units_parsed[0])
+                ),
+                array=array,
+                chunks=chunks,
+                compressor=compressor,
+            )
+            for path, array, scale in zip(paths, arrays, scales_parsed)
+        }
         return cls(members=members, attributes=attributes)
 
     @model_validator(mode="after")

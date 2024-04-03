@@ -9,24 +9,25 @@ Cellmap works with large (multi-TB) imaging datasets. We store our images with c
 In this example, we create an N5 hierarchy that complies with the [Neuroglancer N5 convention](https://github.com/google/neuroglancer/issues/176#issuecomment-553027775):
 
 ```python
-from pydantic_zarr.v2 import ArraySpec
 from cellmap_schemas.multiscale.neuroglancer_n5 import Group, PixelResolution, GroupMetadata
 import numpy as np
 
 # define a toy multiscale image
 data = np.arange(16).reshape(4,4)
 data_ds = data[::2, ::2]
-arrays = {
-    's0': ArraySpec.from_array(data),
-    's1': ArraySpec.from_array(data_ds)
-    }
-ngroup = Group(
-    members=arrays, 
-    attributes=GroupMetadata(
-        scales=[[1,1], [2,2]], 
-        axes=['x','y'],
-        units=['nm','nm'],
-        pixelResolution= PixelResolution(dimensions=[4,4], unit='nm')))
+
+scales = (1,1), (2,2)
+units = 'nm', 'nm'
+axes = 'x','y'
+units = 'nm','nm'
+paths = 's0', 's1'
+ngroup = Group.from_arrays(
+    arrays=(data, data_ds), 
+    paths = paths,
+    scales=scales, 
+    axes=axes,
+    units=units,
+    dimension_order="C")
 
 # prepare the hiearchy for writing data by calling 
 # stored_group = ngroup.to_zarr(

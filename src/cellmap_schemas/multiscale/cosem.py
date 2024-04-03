@@ -370,7 +370,6 @@ class Group(neuroglancer_n5.Group):
         name: str | None = None,
         chunks: tuple[int, ...] | tuple[tuple[int, ...]] | Literal["auto"] = "auto",
         compressor: Codec | None | Literal["auto"] = "auto",
-        fill_value: Any = 0,
     ) -> Self:
         """
         Create a `Group` from arrays and spatial metadata.
@@ -380,7 +379,6 @@ class Group(neuroglancer_n5.Group):
             path: Array.from_array(
                 array=array,
                 chunks=chunks,
-                fill_value=fill_value,
                 compressor=compressor,
                 dimension_separator="/",
                 attributes=ArrayMetadata.from_transform(transform),

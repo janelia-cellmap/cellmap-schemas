@@ -1,7 +1,12 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Literal
+
+from numcodecs import GZip, Zstd
 from functools import reduce
 import operator
-from typing import Literal, Optional, Tuple
 import numpy as np
 from pydantic import ValidationError
 import pytest
@@ -16,11 +21,12 @@ from cellmap_schemas.multiscale.cosem import (
     change_coordinates,
 )
 from cellmap_schemas.multiscale.neuroglancer_n5 import PixelResolution
+from zarr.util import guess_chunks
 
 
 @pytest.mark.parametrize("ndim", (2, 3, 4))
 @pytest.mark.parametrize("broken_attribute", (None, "axes", "scale", "translate", "units"))
-def test_sttransform_attribute_lengths(ndim: int, broken_attribute: Optional[str]):
+def test_sttransform_attribute_lengths(ndim: int, broken_attribute: str | None):
     data = {
         "axes": list(map(str, range(ndim))),
         "scale": [1] * ndim,
@@ -53,7 +59,7 @@ def test_sttransform_attribute_lengths(ndim: int, broken_attribute: Optional[str
     ),
 )
 def test_multiscale_array_attribute_length(
-    ndim: int, order: Literal["C", "F"], broken_attribute: Optional[str]
+    ndim: int, order: Literal["C", "F"], broken_attribute: str | None
 ):
     transform = STTransform(
         axes=list(map(str, range(ndim))),
@@ -120,7 +126,7 @@ def test_array_meta_from_transform(order: Literal["C", "F"]):
 @pytest.mark.parametrize("scale", [(1, 2, 3), (2, 4, 6)])
 @pytest.mark.parametrize("axes", [("a", "b", "c"), ("z", "y", "x")])
 def test_multiscale_meta_from_transforms(
-    name: Optional[str], order: Literal["C", "F"], scale: Tuple[int, ...], axes: Tuple[str, ...]
+    name: str | None, order: Literal["C", "F"], scale: tuple[int, ...], axes: tuple[str, ...]
 ):
     transforms = {
         "s0": STTransform(
@@ -144,7 +150,7 @@ def test_multiscale_meta_from_transforms(
 
 @pytest.mark.parametrize("name", [None, "bar"])
 @pytest.mark.parametrize("order", ["C", "F"])
-def test_groupmetadata_from_transforms(order: Literal["C", "F"], name: Optional[str]):
+def test_groupmetadata_from_transforms(order: Literal["C", "F"], name: str | None):
     units = ("nm",) * 3
     axes = ("z", "y", "x")
     scale = (3, 2, 1)
@@ -200,7 +206,7 @@ def test_multiscale_array_c_f_order(order: Literal["C", "F"]):
 @pytest.mark.parametrize("order", ("C", "F"))
 @pytest.mark.parametrize("broken_attribute", (None, "axes", "scales", "units"))
 def test_multiscale_group(
-    shape: Tuple[int, ...], order: Literal["C", "F"], broken_attribute: Optional[str]
+    shape: tuple[int, ...], order: Literal["C", "F"], broken_attribute: str | None
 ):
     shapes = tuple(tuple(s // (2**idx) for s in shape) for idx in range(3))
     scales: list[list[int]] = []
@@ -253,7 +259,7 @@ def test_multiscale_group(
 
 @pytest.mark.parametrize("name", [None, "bar"])
 @pytest.mark.parametrize("order", ["C", "F"])
-def test_multiscale_group_from_arrays(order: Literal["C", "F"], name: Optional[str]):
+def test_multiscale_group_from_arrays(order: Literal["C", "F"], name: str | None):
     units = ("nm",) * 3
     axes = ("z", "y", "x")
     scale = (3, 2, 1)
@@ -317,11 +323,11 @@ def test_multiscale_group_from_arrays(order: Literal["C", "F"], name: Optional[s
 @pytest.mark.parametrize("units", [None, ("m", "m", "m")])
 @pytest.mark.parametrize("order", [None, "C", "F"])
 def test_change_coordinates_3d(
-    axes: Optional[str],
-    translate: Optional[tuple[int, ...]],
-    scale: Optional[tuple[int, ...]],
-    units: Optional[tuple[str, ...]],
-    order: Optional[Literal["C", "F"]],
+    axes: str | None,
+    translate: tuple[int, ...] | None,
+    scale: tuple[int, ...] | None,
+    units: tuple[str, ...] | None,
+    order: Literal["C", "F"] | None,
 ):
     base_units_c = ("micron", "micron", "micron")
     base_axes_c = ("a", "b", "c")
@@ -400,3 +406,51 @@ def test_change_coordinates_3d(
     )
     assert new_spec.members["s0"].attributes.transform == transforms_expected["s0"]
     assert new_spec.members["s1"].attributes.transform == transforms_expected["s1"]
+
+
+@pytest.mark.parametrize("dimension_order", ("C", "F"))
+@pytest.mark.parametrize("chunks", ("auto", ((2, 2, 2))))
+@pytest.mark.parametrize("compressor", (Zstd(3), GZip(-1)))
+def test_from_arrays(
+    dimension_order: Literal["C", "F"],
+    chunks: Literal["auto"] | int | tuple[int, ...] | tuple[tuple[int, ...], ...],
+    compressor: Zstd | GZip,
+) -> None:
+    arrays = (np.zeros((10, 10, 10)), np.zeros((5, 5, 5)), np.zeros((2, 2, 2)))
+    scales = ((1.0, 1.0, 1.5), (2.0, 2.0, 2.0), (4.0, 4.0, 4.0))
+    translates = ((0.0, 0.0, 1.5), (0.6, 0.6, 2.0), (3.0, 4.0, 5.0))
+    axes = ("z", "y", "x")
+    paths = ("s0", "s1", "s2")
+    units = ("nm", "nm", "nm")
+    transforms = tuple(
+        STTransform(axes=axes, scale=scale, translate=translate, units=units, order=dimension_order)
+        for scale, translate in zip(scales, translates)
+    )
+
+    group = Group.from_arrays(
+        arrays=arrays, paths=paths, transforms=transforms, compressor=compressor, chunks=chunks
+    )
+
+    assert set(group.members.keys()) == set(paths)
+
+    if dimension_order == "C":
+        indexer = slice(-1, None, -1)
+    else:
+        indexer = slice(None)
+
+    assert group.attributes.pixelResolution == PixelResolution(
+        dimensions=scales[0][indexer], unit=units[indexer][0]
+    )
+    for idx in range(len(arrays)):
+        obs = group.members[paths[idx]]
+        exp = arrays[idx]
+        if chunks == "auto":
+            chunks_expected = guess_chunks(exp.shape, exp.dtype.itemsize)
+        else:
+            chunks_expected = chunks
+        assert obs.chunks == chunks_expected
+
+        assert obs.attributes.pixelResolution == PixelResolution(
+            dimensions=scales[idx][indexer], unit=units[indexer][0]
+        )
+        assert obs.compressor == compressor.get_config()
