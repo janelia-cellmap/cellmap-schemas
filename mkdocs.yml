@@ -9,9 +9,15 @@ repo_name: janelia-cellmap/cellmap-schemas
 repo_url: https://github.com/janelia-cellmap/cellmap-schemas
 
 # Copyright
-copyright: Copyright &copy; 2016 - 2023 HHMI / Janelia
-
+copyright: Copyright &copy; 2016 - 2024 HHMI / Janelia
+watch: [src]
+strict: true
 theme:
+  features:
+    - content.tabs.link
+    - content.code.annotate
+    - content.code.copy
+    - navigation.tabs
   logo:
     https://avatars.githubusercontent.com/u/105455240?s=200&v=4
   favicon: 

@@ -14,6 +14,6 @@ git clone https://github.com/janelia-cellmap/cellmap-schemas.git
 pytest tests
 ```
 
-4. This project uses `mkdocs` for documentation. Run `mkdocs serve --watch src` to preview rendered documentation.
+4. This project uses `mkdocs` for documentation. Run `mkdocs serve` to preview rendered documentation.
 
 5. Submit a pull request with your changes to the main code branch on [github](https://github.com/janelia-cellmap/cellmap-schemas).

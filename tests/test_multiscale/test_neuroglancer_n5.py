@@ -1,11 +1,18 @@
 from __future__ import annotations
-from typing import Optional
+from typing import TYPE_CHECKING
+from numcodecs import GZip, Zstd
+
+if TYPE_CHECKING:
+    from typing import Literal
+
+import numpy as np
 from pydantic import ValidationError
 import pytest
-from cellmap_schemas.multiscale.neuroglancer_n5 import GroupMetadata, PixelResolution
+from zarr.util import guess_chunks
+from cellmap_schemas.multiscale.neuroglancer_n5 import GroupMetadata, PixelResolution, Group
 
 
-def test_pixelresolution():
+def test_pixelresolution() -> None:
     data = {"dimensions": [1.0, 1.0, 1.0], "unit": "nm"}
     PixelResolution.model_validate(data)
 
@@ -14,7 +21,7 @@ def test_pixelresolution():
 @pytest.mark.parametrize(
     "broken_attribute", (None, "axes", "units", "scales[0]", "pixelResolution.dimensions")
 )
-def test_group_metadata_attribute_lengths(ndim: int, broken_attribute: Optional[str]):
+def test_group_metadata_attribute_lengths(ndim: int, broken_attribute: str | None) -> None:
     data = {
         "axes": list(map(str, range(ndim))),
         "units": ["nm"] * ndim,
@@ -48,3 +55,51 @@ def test_group_metadata_wrong_scale_0(ndim: int):
     }
     with pytest.raises(ValidationError):
         GroupMetadata.model_validate(data_wrong_axes)
+
+
+@pytest.mark.parametrize("dimension_order", ("C", "F"))
+@pytest.mark.parametrize("chunks", ("auto", ((2, 2, 2))))
+@pytest.mark.parametrize("compressor", (Zstd(3), GZip(-1)))
+def test_from_arrays(
+    dimension_order: Literal["C", "F"],
+    chunks: Literal["auto"] | int | tuple[int, ...] | tuple[tuple[int, ...], ...],
+    compressor: Zstd | GZip,
+) -> None:
+    arrays = (np.zeros((10, 10, 10)), np.zeros((5, 5, 5)), np.zeros((2, 2, 2)))
+    scales = ((1.0, 1.0, 1.5), (2.0, 2.0, 2.0), (4.0, 4.0, 4.0))
+    axes = ("z", "y", "x")
+    paths = ("s0", "s1", "s2")
+    units = ("nm", "nm", "nm")
+
+    group = Group.from_arrays(
+        arrays=arrays,
+        paths=paths,
+        scales=scales,
+        axes=axes,
+        units=units,
+        compressor=compressor,
+        chunks=chunks,
+        dimension_order=dimension_order,
+    )
+
+    if dimension_order == "C":
+        indexer = slice(-1, None, -1)
+    else:
+        indexer = slice(None)
+
+    assert set(group.members.keys()) == set(paths)
+    assert group.attributes.pixelResolution == PixelResolution(
+        dimensions=scales[0][indexer], unit=units[indexer][0]
+    )
+    for idx in range(len(arrays)):
+        obs = group.members[paths[idx]]
+        exp = arrays[idx]
+        if chunks == "auto":
+            chunks_expected = guess_chunks(exp.shape, exp.dtype.itemsize)
+        else:
+            chunks_expected = chunks
+        assert obs.chunks == chunks_expected
+        assert obs.attributes.pixelResolution == PixelResolution(
+            dimensions=scales[idx][indexer], unit=units[indexer][0]
+        )
+        assert obs.compressor == compressor.get_config()

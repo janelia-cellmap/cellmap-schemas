@@ -4,11 +4,16 @@ in N5 groups. See Neuroglancer's [N5-specific documentation](https://github.com/
 for details on what Neuroglancer expects when it reads N5 data.
 """
 from __future__ import annotations
-from typing import Annotated, Sequence
-from pydantic import BaseModel, PositiveInt, model_validator, AfterValidator
-from pydantic_zarr.v2 import ArraySpec
+from typing import TYPE_CHECKING, Any, Sequence
+
+if TYPE_CHECKING:
+    from typing_extensions import Self, Type, Literal
+    from numcodecs.abc import Codec
+from pydantic import BaseModel, PositiveInt, model_validator
+from pydantic_zarr.v2 import ArraySpec, GroupSpec
 
 from cellmap_schemas.n5_wrap import N5GroupSpec
+from numpy.typing import NDArray
 
 
 class PixelResolution(BaseModel):
@@ -57,8 +62,15 @@ class PixelResolution(BaseModel):
             The physical unit for the `dimensions` attribute.
     """  # noqa: E501
 
-    dimensions: Sequence[float]
+    dimensions: tuple[float, ...]
     unit: str
+
+
+class ArrayMetadata(BaseModel):
+    pixelResolution: PixelResolution
+
+
+Array = ArraySpec[ArrayMetadata]
 
 
 # todo: validate argument lengths
@@ -76,11 +88,11 @@ class GroupMetadata(BaseModel):
 
     Attributes
     ----------
-    axes : Sequence[str]
+    axes : tuple[str]
             The names of the axes of the data
-    units : Sequence[str]
+    units : tuple[str]
             The units for the axes of the data
-    scales : Sequence[Sequence[PositiveInt]]
+    scales : tuple[tuple[PositiveInt]]
             The relative scales of each axis. E.g., if this metadata describes a 3D dataset
             that was downsampled isotropically by 2 along each axis over two iterations,
             resulting in 3 total arrays, then `scales` would be the list
@@ -92,9 +104,9 @@ class GroupMetadata(BaseModel):
             class.
     """  # noqa: E501
 
-    axes: Sequence[str]
-    units: Sequence[str]
-    scales: Sequence[Sequence[PositiveInt]]
+    axes: tuple[str, ...]
+    units: tuple[str, ...]
+    scales: tuple[tuple[PositiveInt, ...], ...]
     pixelResolution: PixelResolution
 
     @model_validator(mode="after")
@@ -105,17 +117,16 @@ class GroupMetadata(BaseModel):
                 f"match the number of elements in `units` ({len(self.units)})."
             )
             raise ValueError(msg)
-        for idx, scale in enumerate(self.scales):
-            if idx == 0 and not all(s == 1 for s in scale):
-                msg = f"The first element of `scales` must be all 1s. Got {scale} instead."
-                raise ValueError(msg)
+        if not all(s == 1 for s in self.scales[0]):
+            msg = f"The first element of `scales` must be all 1s. Got {self.scales[0]} instead."
+            raise ValueError(msg)
+        for idx, scale in tuple(enumerate(self.scales)):
             if not len(scale) == len(self.axes):
                 msg = (
                     f"The number of elements in `axes` ({len(self.axes)}) does not"
                     f"match the number of elements in the {idx}th element in `scales`"
                     f"({len(self.units)})."
                 )
-
                 raise ValueError(msg)
 
         if not len(self.pixelResolution.dimensions) == len(self.axes):
@@ -132,50 +143,7 @@ class GroupMetadata(BaseModel):
                     f"match `pixelResolution.unit` ({self.pixelResolution.unit})"
                 )
                 raise ValueError(msg)
-
         return self
-
-
-def check_members(members: dict[str, ArraySpec]) -> dict[str, ArraySpec]:
-    # check that the names of the arrays are s0, s1, s2, etc
-    for key, spec in members.items():
-        assert check_scale_level_name(key)
-    # check that dtype is uniform
-    assert len(set(a.dtype for a in members.values())) == 1
-    # check that dimensionality is uniform
-    assert len(set(len(a.shape) for a in members.values())) == 1
-    return members
-
-
-def check_scale_level_name(name: str) -> bool:
-    """
-    Check if the input follows the pattern `s$INT`, i.e., check if the input is
-    a string that starts with "s", followed by a string representation of an integer,
-    and nothing else.
-
-    If validation passes, this function returns `True`.
-    If validation fails, it returns `False`.
-
-    Parameters
-    ----------
-
-    name: str
-            The name to check.
-
-    Returns
-    -------
-
-    `True` if `name` is valid, `False` otherwise.
-    """
-    valid = True
-    if name.startswith("s"):
-        try:
-            int(name.split("s")[-1])
-        except ValueError:
-            valid = False
-    else:
-        valid = False
-    return valid
 
 
 class Group(N5GroupSpec):
@@ -189,17 +157,97 @@ class Group(N5GroupSpec):
     attributes : GroupMetadata
             The metadata required to convey to neuroglancer that this group represents a
             multiscale image.
-    members : Dict[str, Union[GroupSpec, ArraySpec]]
+    members : Dict[str, ArraySpec | GroupSpec]
             The members of this group. Arrays must be consistent with the `scales` attribute
             in `attributes`.
 
     """
 
     attributes: GroupMetadata
-    members: Annotated[dict[str, ArraySpec], AfterValidator(check_members)]
+    members: dict[str, Array | GroupSpec]
+
+    @classmethod
+    def from_arrays(
+        cls: Type[Self],
+        *,
+        arrays: Sequence[NDArray[Any]],
+        paths: Sequence[str],
+        axes: Sequence[str],
+        scales: Sequence[Sequence[float]],
+        units: Sequence[str],
+        chunks: tuple[int, ...] | tuple[tuple[int, ...]] | Literal["auto"] = "auto",
+        compressor: Codec | None | Literal["auto"] = "auto",
+        dimension_order: Literal["C", "F"],
+    ) -> Self:
+        """
+        Create a Neuroglancer / N5 multiscale group from a collection of array-like objects and
+        spatial metadata. This group should be stored in the N5 format.
+
+        Parameters
+        ----------
+        arrays: Sequence[NDArray[Any]]
+            A sequence of arrays that define a multiscale image.
+        paths: Sequence[str]
+            The names of the arrays in storage.
+        axes: Sequence[str]
+            The names of the dimensions of the multiscale image.
+        scales: Sequence[Sequence[float]]
+            The scaling transformation for each array in the multiscale image.
+        units: Sequence[str]
+            The units associated with each dimension of the multiscale image.
+        chunks: tuple[int, ...] | tuple[tuple[int, ...], ...] | Literal["auto"] = "auto"
+            The chunks to use for the Zarr arrays.
+        compressor: Codec | None | Literal["auto"] = "auto"
+            The compressor to use for the Zarr arrays.
+        dimension_order: Literal["C", "F"]
+            The dimension order to use when interpreting dimensional attributes like `axes`,
+            `scales` and `units`. Neuroglancer / N5 metadata iterates array axes in F order, but
+            Python-native tools like `zarr-python` tends to iterate array axes in C order. Because
+            the class being constructed here uses N5 metadata wrapped in a Python library, there is
+            a risk of confusion about the order in which axes will be iterated, in particular when
+            handling `scales` and `axes` metadata. The `dimension_order` parameter explicitly
+            denotes whether the `axes` parameter, and the elements of the `scales` parameter, are
+            to be interpreted as mapping to the dimensions of the data in F order or C order. Note
+            that `dimension_order` has no effect on the `chunks` parameter, since that is managed
+            entirely by Zarr.
+        """
+
+        if dimension_order == "C":
+            # this will reverse the order of axes, units, and scales before writing metadata
+            indexer = slice(-1, None, -1)
+        else:
+            # this preserves the order of axes, units, and scales before writing metadata
+            indexer = slice(None)
+
+        axes_parsed = tuple(axes[indexer])
+        scales_parsed = tuple(tuple(s)[indexer] for s in scales)
+        units_parsed = tuple(units[indexer])
+
+        scale_ratios = tuple(
+            tuple(int(a // b) for a, b in zip(scale, scales_parsed[0])) for scale in scales_parsed
+        )
+
+        attributes = GroupMetadata(
+            axes=axes_parsed,
+            units=units_parsed,
+            scales=scale_ratios,
+            pixelResolution=PixelResolution(unit=units_parsed[0], dimensions=scales_parsed[0]),
+        )
+        members = {
+            path: Array.from_array(
+                attributes=ArrayMetadata(
+                    pixelResolution=PixelResolution(dimensions=scale, unit=units_parsed[0])
+                ),
+                array=array,
+                chunks=chunks,
+                compressor=compressor,
+            )
+            for path, array, scale in zip(paths, arrays, scales_parsed)
+        }
+        return cls(members=members, attributes=attributes)
 
     @model_validator(mode="after")
-    def check_scales(self: "Group"):
+    def check_scales(self: Self):
         scales = self.attributes.scales
         members = self.members
 
@@ -207,12 +255,11 @@ class Group(N5GroupSpec):
             name_expected = f"s{level}"
             if name_expected not in members:
                 raise ValueError(
-                    f"Expected to find {name_expected} in `members` but it is missing. "
-                    f"members[{name_expected}] should be an array."
+                    f"Expected an array called {name_expected} in `members`, but it is missing. "
                 )
-            elif not isinstance(members[name_expected], ArraySpec):
+            if not isinstance(members[name_expected], ArraySpec):
                 raise ValueError(
-                    f"members[{name_expected}] should be an array. Got {type(members[name_expected])} instead."
+                    f"Expected an array called {name_expected} in `members`. Got {type(members[name_expected])} instead."
                 )
 
         return self

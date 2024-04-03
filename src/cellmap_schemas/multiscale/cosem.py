@@ -7,8 +7,15 @@ Note that the hierarchy convention modeled here will likely be superceded by con
 in the [OME-NGFF](https://ngff.openmicroscopy.org/) specification.
 """
 from __future__ import annotations
-from typing import Annotated, Dict, List, Literal, Optional, Sequence, Tuple
+from typing import Annotated, Any, Literal, Optional, Sequence, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Type
+    from typing_extensions import Self
+
 import numpy as np
+from numcodecs.abc import Codec
+from numpy.typing import NDArray
 from pydantic_zarr.v2 import GroupSpec, ArraySpec
 from pydantic import BaseModel, Field, model_validator
 from cellmap_schemas.multiscale import neuroglancer_n5
@@ -55,13 +62,13 @@ class STTransform(BaseModel):
     """
 
     order: Optional[Literal["C", "F"]] = "C"
-    axes: Tuple[str, ...]
-    units: Tuple[str, ...]
-    translate: Tuple[float, ...]
-    scale: Tuple[float, ...]
+    axes: tuple[str, ...]
+    units: tuple[str, ...]
+    translate: tuple[float, ...]
+    scale: tuple[float, ...]
 
     @model_validator(mode="after")
-    def validate_argument_length(self: "STTransform"):
+    def validate_argument_length(self: Self):
         if not len(self.axes) == len(self.units) == len(self.translate) == len(self.scale):
             raise ValueError(
                 "The length of all arguments must match. "
@@ -102,7 +109,7 @@ class ArrayMetadata(BaseModel):
         return cls(transform=transform, pixelResolution=pixr)
 
     @model_validator(mode="after")
-    def check_dimensionality(self: "ArrayMetadata"):
+    def check_dimensionality(self: Self):
         """
         Check that `pixelResolution` and `transform` are consistent.
         """
@@ -170,28 +177,28 @@ class MultiscaleMetadata(BaseModel):
 
     Attributes
     ----------
-    name: Optional[str]
+    name: str | None
         A name for this multiscale group. Rarely used.
-    datasets: Sequence[ScaleMetadata]
+    datasets: tuple[ScaleMetadata, ...]
         A sequence of [`ScaleMetadata`][cellmap_schemas.multiscale.cosem.ScaleMetadata] elements
-            that refer to the arrays contained inside the group bearing this metadata.
-            Each element of `MultiscaleMetadata.datasets` references an array contained
-            within the group that bears this metadata. These references contain
-        the name of the array, under the `ScaleMeta.path` attribute, and the coordinate
-        metadata for the array, under the `ScaleMeta.transform` attribute.
+        that refer to the arrays contained inside the group bearing this metadata.
+        Each element of `MultiscaleMetadata.datasets` references an array contained
+        within the group that bears this metadata. These references contain
+        the name of the array, under the `ScaleMetadata.path` attribute, and the coordinate
+        metadata for the array, under the `ScaleMetadata.transform` attribute.
     """
 
-    name: Optional[str] = None
-    datasets: Sequence[ScaleMetadata]
+    name: str | None = None
+    datasets: tuple[ScaleMetadata, ...]
 
     @classmethod
-    def from_transforms(cls, transforms: Dict[str, STTransform], *, name: Optional[str] = None):
+    def from_transforms(cls, *, transforms: dict[str, STTransform], name: str | None = None):
         """
         Create an instance of `MultiscaleMetadata` from a dict of `STTransform` and an optional name.
         """
         return cls(
             name=name,
-            datasets=list(ScaleMetadata(path=key, transform=tx) for key, tx in transforms.items()),
+            datasets=tuple(ScaleMetadata(path=key, transform=tx) for key, tx in transforms.items()),
         )
 
 
@@ -217,10 +224,10 @@ class GroupMetadata(neuroglancer_n5.GroupMetadata):
         images at different levels of detail.
     """
 
-    multiscales: Annotated[List[MultiscaleMetadata], Field(..., max_length=1, min_length=1)]
+    multiscales: Annotated[tuple[MultiscaleMetadata, ...], Field(..., max_length=1, min_length=1)]
 
     @classmethod
-    def from_transforms(cls, transforms: Dict[str, STTransform], *, name: Optional[str] = None):
+    def from_transforms(cls, transforms: dict[str, STTransform], *, name: str | None = None):
         """
         Create `MultiscaleMetadata` from a dict of `STTransform` and an optional name.
         """
@@ -238,7 +245,7 @@ class GroupMetadata(neuroglancer_n5.GroupMetadata):
         units = s0.units[reorder]
         pixr = PixelResolution(dimensions=s0.scale[reorder], unit=units[0])
 
-        multiscales = MultiscaleMetadata.from_transforms(transforms, name=name)
+        multiscales = MultiscaleMetadata.from_transforms(transforms=transforms, name=name)
 
         return cls(
             pixelResolution=pixr, axes=axes, units=units, multiscales=[multiscales], scales=scales
@@ -286,16 +293,15 @@ class Group(neuroglancer_n5.Group):
         Metadata that conveys that this is a multiscale group, and the coordinate
             information of the arrays it contains.
     members: dict[str, MultiscaleArray]
-        The members of this group must be instances of
+        The members of this group. Must be instances of
             [`MultiscaleArray`][cellmap_schemas.multiscale.cosem.Array]
-
     """
 
     attributes: GroupMetadata
     members: dict[str, Array]
 
     @model_validator(mode="after")
-    def check_arrays_consistent(self: "Group"):
+    def check_arrays_consistent(self: Self):
         """
         Check that the arrays referenced by `GroupMetadata` are consist with the
         arrays in `members`.
@@ -357,25 +363,62 @@ class Group(neuroglancer_n5.Group):
         return self
 
     @classmethod
-    def from_arrays(cls, arrays: Dict[str, Array], *, name: Optional[str] = None):
+    def from_arrays(
+        cls: Type[Self],
+        *,
+        arrays: Sequence[NDArray[Any]],
+        paths: Sequence[str],
+        transforms: Sequence[STTransform],
+        name: str | None = None,
+        chunks: tuple[int, ...] | tuple[tuple[int, ...]] | Literal["auto"] = "auto",
+        compressor: Codec | None | Literal["auto"] = "auto",
+    ) -> Self:
         """
-        Create a `Group` from a dict of `Array` instances
+        Create a COSEM / Cellmap multiscale group from a collection of array-like objects and
+        spatial metadata. This group should be stored in the N5 format.
+
+        For documentation about this layout, see [https://janelia-cellmap.github.io//cellmap-schemas/cellmap-conventions/s3-overview/](https://janelia-cellmap.github.io//cellmap-schemas/cellmap-conventions/s3-overview/)
+
+        Parameters
+        ----------
+        arrays: Sequence[NDArray[Any]]
+            A sequence of arrays that define a multiscale image.
+        paths: Sequence[str]
+            The names of the arrays in storage.
+        transforms: Sequence[STTransform]
+            Spatial metadata for each image.
+        name: str | None = None
+            A name for this multiscale image
+        chunks: tuple[int, ...] | tuple[tuple[int, ...], ...] | Literal["auto"] = "auto"
+            The chunks to use for the Zarr arrays.
+        compressor: Codec | None | Literal["auto"] = "auto"
+            The compressor to use for the Zarr arrays.
         """
+        members = {
+            path: Array.from_array(
+                array=array,
+                chunks=chunks,
+                compressor=compressor,
+                dimension_separator="/",
+                attributes=ArrayMetadata.from_transform(transform),
+            )
+            for path, array, transform in zip(paths, arrays, transforms)
+        }
 
         metadata = GroupMetadata.from_transforms(
-            {key: array.attributes.transform for key, array in arrays.items()}, name=name
+            {key: array.attributes.transform for key, array in members.items()}, name=name
         )
-        return cls(attributes=metadata, members=arrays)
+        return cls(attributes=metadata, members=members)
 
 
 def new_sttransform(
     meta: STTransform,
     *,
-    scale: Optional[Tuple[float, ...]] = None,
-    axes: Optional[Tuple[str, ...]] = None,
-    order: Optional[Literal["C", "F"]] = None,
-    translate: Optional[Tuple[float, ...]] = None,
-    units: Optional[Tuple[str, ...]] = None,
+    scale: tuple[float, ...] | None = None,
+    axes: tuple[str, ...] | None = None,
+    order: Literal["C", "F"] | None = None,
+    translate: tuple[float, ...] | None = None,
+    units: tuple[str, ...] | None = None,
 ) -> STTransform:
     if scale is None:
         scale = meta.scale
@@ -394,11 +437,11 @@ def new_sttransform(
 def new_multiscalemetadata(
     meta: MultiscaleMetadata,
     *,
-    scale: Optional[Tuple[float, ...]] = None,
-    axes: Optional[Tuple[str, ...]] = None,
-    order: Optional[Literal["C", "F"]] = None,
-    translate: Optional[Tuple[float, ...]] = None,
-    units: Optional[Tuple[str, ...]] = None,
+    scale: tuple[float, ...] | None = None,
+    axes: tuple[str, ...] | None = None,
+    order: Literal["C", "F"] | None = None,
+    translate: tuple[float, ...] | None = None,
+    units: tuple[str, ...] | None = None,
 ) -> MultiscaleMetadata:
     new_datasets = []
     for dataset in meta.datasets:
@@ -413,11 +456,11 @@ def new_multiscalemetadata(
 def new_groupmetadata(
     meta: GroupMetadata,
     *,
-    scale: Optional[Tuple[float, ...]] = None,
-    axes: Optional[Tuple[str, ...]] = None,
-    order: Optional[Literal["C", "F"]] = None,
-    translate: Optional[Tuple[float, ...]] = None,
-    units: Optional[Tuple[str, ...]] = None,
+    scale: tuple[float, ...] | None = None,
+    axes: tuple[str, ...] | None = None,
+    order: Literal["C", "F"] | None = None,
+    translate: tuple[float, ...] | None = None,
+    units: tuple[str, ...] | None = None,
 ) -> GroupMetadata:
     new_multiscales = [
         new_multiscalemetadata(
@@ -465,11 +508,11 @@ def new_groupmetadata(
 def change_coordinates(
     group: Group,
     *,
-    scale: Optional[Tuple[float, ...]] = None,
-    axes: Optional[Tuple[str, ...]] = None,
-    order: Optional[Literal["C", "F"]] = None,
-    translate: Optional[Tuple[float, ...]] = None,
-    units: Optional[Tuple[str, ...]] = None,
+    scale: tuple[float, ...] | None = None,
+    axes: tuple[str, ...] | None = None,
+    order: Literal["C", "F"] | None = None,
+    translate: tuple[float, ...] | None = None,
+    units: tuple[str, ...] | None = None,
 ):
     """
     Return a Group with new coordinates, i.e., new scale, axes, order, translate, or units. If any of these
