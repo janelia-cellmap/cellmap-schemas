@@ -179,11 +179,44 @@ class Group(N5GroupSpec):
         compressor: Codec | None | Literal["auto"] = "auto",
         dimension_order: Literal["C", "F"],
     ) -> Self:
+        """
+        Create a Neuroglancer / N5 multiscale group from a collection of array-like objects and
+        spatial metadata.
+
+        Parameters
+        ----------
+        arrays: Sequence[NDArray[Any]]
+            A sequence of arrays that define a multiscale image.
+        paths: Sequence[str]
+            The names of the arrays in storage.
+        axes: Sequence[str]
+            The names of the dimensions of the multiscale image.
+        scales: Sequence[Sequence[float]]
+            The scaling transformation for each array in the multiscale image.
+        units: Sequence[str]
+            The units associated with each dimension of the multiscale image.
+        chunks: tuple[int, ...] | tuple[tuple[int, ...], ...] | Literal["auto"] = "auto"
+            The chunks to use for the Zarr arrays.
+        compressor: Codec | None | Literal["auto"] = "auto"
+            The compressor to use for the Zarr arrays.
+        dimension_order: Literal["C", "F"]
+            The dimension order to use when interpreting dimensional attributes like `axes`,
+            `scales` and `units`. Neuroglancer / N5 metadata iterates array axes in F order, but
+            Python-native tools like `zarr-python` tends to iterate array axes in C order. Because
+            the class being constructed here uses N5 metadata wrapped in a Python library, there is
+            a risk of confusion about the order in which axes will be iterated, in particular when
+            handling `scales` and `axes` metadata. The `dimension_order` parameter explicitly
+            denotes whether the `axes` parameter, and the elements of the `scales` parameter, are
+            to be interpreted as mapping to the dimensions of the data in F order or C order. Note
+            that `dimension_order` has no effect on the `chunks` parameter, since that is managed
+            entirely by Zarr.
+        """
+
         if dimension_order == "C":
-            # this will flip the axes, units, and scales before writing metadata
+            # this will reverse the order of axes, units, and scales before writing metadata
             indexer = slice(-1, None, -1)
         else:
-            # this preserves the input order of dimensional attributes
+            # this preserves the order of axes, units, and scales before writing metadata
             indexer = slice(None)
 
         axes_parsed = tuple(axes[indexer])

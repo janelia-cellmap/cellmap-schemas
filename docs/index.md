@@ -15,28 +15,84 @@ import numpy as np
 # define a toy multiscale image
 data = np.arange(16).reshape(4,4)
 data_ds = data[::2, ::2]
-
-scales = (1,1), (2,2)
+arrays = data, data_ds
+scales = (4.0, 5.0), (8.0, 10.0)
 units = 'nm', 'nm'
-axes = 'x','y'
+axes = 'y','x'
 units = 'nm','nm'
 paths = 's0', 's1'
-ngroup = Group.from_arrays(
-    arrays=(data, data_ds), 
+
+# the dimension_order parameter indicates that our axes and scales are in C order
+# N5 metadata uses F order, and so those paramters will be flipped in the resulting 
+# metadata.
+group_model = Group.from_arrays(
+    arrays=arrays,
     paths = paths,
     scales=scales, 
     axes=axes,
     units=units,
     dimension_order="C")
 
-# prepare the hiearchy for writing data by calling 
-# stored_group = ngroup.to_zarr(
-#   zarr.N5FSStore('path/to/n5/root.n5'), 
-#   path='foo')
-# then write data, e.g.
-# stored_group['s0'][:] = data
-# stored_group['s1'][:] = data_ds
+# print out the attributes of the group model
+print(group_model.model_dump(exclude='members'))
+"""
+{
+    'zarr_version': 2,
+    'attributes': {
+        'axes': ('x', 'y'),
+        'units': ('nm', 'nm'),
+        'scales': ((1, 1), (2, 2)),
+        'pixelResolution': {'dimensions': (5.0, 4.0), 'unit': 'nm'},
+    },
+}
+"""
 
+# print out the members of the group model
+print(group_model.model_dump(exclude='attributes'))
+"""
+{
+    'zarr_version': 2,
+    'members': {
+        's0': {
+            'zarr_version': 2,
+            'attributes': {'pixelResolution': {'dimensions': (5.0, 4.0), 'unit': 'nm'}},
+            'shape': (4, 4),
+            'chunks': (4, 4),
+            'dtype': '<i8',
+            'fill_value': 0,
+            'order': 'C',
+            'filters': None,
+            'dimension_separator': '/',
+            'compressor': None,
+        },
+        's1': {
+            'zarr_version': 2,
+            'attributes': {
+                'pixelResolution': {'dimensions': (10.0, 8.0), 'unit': 'nm'}
+            },
+            'shape': (2, 2),
+            'chunks': (2, 2),
+            'dtype': '<i8',
+            'fill_value': 0,
+            'order': 'C',
+            'filters': None,
+            'dimension_separator': '/',
+            'compressor': None,
+        },
+    },
+}
+"""
+```
+
+The above example did not write out any of the arrays to disk. To do this, you can use the `to_zarr`
+method of `Group` to create a hierarchy in storage, then write the arrays.
+
+```{.py test="skip"}
+from zarr import N5FSStore
+store = N5FSStore('path/to/n5/data.n5')
+group = group_model.to_zarr(store=store, path='image')
+group['s0'][:] = arrays[0]
+group['s1'][:] = arrays[1]
 ```
 
 ## Example: validating a container with the cli

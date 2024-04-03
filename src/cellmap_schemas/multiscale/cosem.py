@@ -10,7 +10,9 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal, Optional, Sequence, TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from typing import Type
     from typing_extensions import Self
+
 import numpy as np
 from numcodecs.abc import Codec
 from numpy.typing import NDArray
@@ -362,7 +364,7 @@ class Group(neuroglancer_n5.Group):
 
     @classmethod
     def from_arrays(
-        cls,
+        cls: Type[Self],
         *,
         arrays: Sequence[NDArray[Any]],
         paths: Sequence[str],
