@@ -181,7 +181,7 @@ class Group(N5GroupSpec):
     ) -> Self:
         """
         Create a Neuroglancer / N5 multiscale group from a collection of array-like objects and
-        spatial metadata.
+        spatial metadata. This group should be stored in the N5 format.
 
         Parameters
         ----------
@@ -247,7 +247,7 @@ class Group(N5GroupSpec):
         return cls(members=members, attributes=attributes)
 
     @model_validator(mode="after")
-    def check_scales(self: "Group"):
+    def check_scales(self: Self):
         scales = self.attributes.scales
         members = self.members
 

@@ -34,6 +34,7 @@ group_model = Group.from_arrays(
     dimension_order="C")
 
 # print out the attributes of the group model
+# note that the axes are flipped relative to their input order
 print(group_model.model_dump(exclude='members'))
 """
 {
