@@ -1,5 +1,8 @@
 from __future__ import annotations
+import numpy.typing as npt
+from typing import Any, Literal
 from pydantic_zarr.v2 import ArraySpec, GroupSpec
+from pydantic_zarr.v2 import auto_chunks
 
 
 def structure_group_equal(spec_a: GroupSpec, spec_b: GroupSpec) -> bool:
@@ -33,3 +36,28 @@ def structure_equal(spec_a: ArraySpec | GroupSpec, spec_b: ArraySpec | GroupSpec
         return structure_group_equal(spec_a, spec_b)
     else:
         return False
+
+
+def normalize_chunks(
+    chunks: Literal["auto"] | tuple[int, ...] | tuple[tuple[int, ...]],
+    arrays: tuple[npt.NDArray[Any], ...],
+) -> tuple[tuple[int, ...], ...]:
+    if chunks == "auto":
+        return tuple(auto_chunks(array) for array in arrays)
+    elif all(isinstance(x, int) for x in chunks):
+        return (chunks,) * len(arrays)
+    elif all(all(isinstance(x, int) for x in t) for t in chunks):
+        result = tuple(map(tuple, chunks))
+        if len(result) != len(arrays):
+            msg = (
+                f"The number of chunks ({len(chunks)}) does not match the number of "
+                f"arrays ({len(arrays)})"
+            )
+            raise ValueError(msg)
+        return result
+    else:
+        msg = (
+            f'Invalid chunks: {chunks}. Expected the string "auto"'
+            "a tuple of ints, or a tuple of tuples of ints."
+        )
+        raise ValueError(msg)
