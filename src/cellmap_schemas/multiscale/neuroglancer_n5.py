@@ -6,6 +6,8 @@ for details on what Neuroglancer expects when it reads N5 data.
 from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Sequence
 
+from cellmap_schemas.base import normalize_chunks
+
 if TYPE_CHECKING:
     from typing_extensions import Self, Type, Literal
     from numcodecs.abc import Codec
@@ -212,6 +214,8 @@ class Group(N5GroupSpec):
             entirely by Zarr.
         """
 
+        chunks = normalize_chunks(chunks, arrays)
+
         if dimension_order == "C":
             # this will reverse the order of axes, units, and scales before writing metadata
             indexer = slice(-1, None, -1)
@@ -239,10 +243,10 @@ class Group(N5GroupSpec):
                     pixelResolution=PixelResolution(dimensions=scale, unit=units_parsed[0])
                 ),
                 array=array,
-                chunks=chunks,
+                chunks=chunk,
                 compressor=compressor,
             )
-            for path, array, scale in zip(paths, arrays, scales_parsed)
+            for path, array, chunk, scale in zip(paths, arrays, chunks, scales_parsed)
         }
         return cls(members=members, attributes=attributes)
 

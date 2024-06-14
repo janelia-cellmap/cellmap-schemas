@@ -1,38 +1,88 @@
-[tool.poetry]
-name = "cellmap-schemas"
-version = "0.7.0"
-description = "Schemas for data used by the Cellmap project team at Janelia Research Campus."
-authors = ["Davis Vann Bennett <davis.v.bennett@gmail.com>"]
-readme = "README.md"
-packages = [{include = "cellmap_schemas", from = "src"}]
-
-[tool.poetry.dependencies]
-python = "^3.9"
-pydantic-zarr = "^0.7.0"
-s3fs = "^2023.10.0"
-rich = "^13.7.0"
-
-
-
-[tool.poetry.group.docs.dependencies]
-mkdocs-material = "^9.4.2"
-mkdocstrings = {extras = ["python"], version = "^0.23.0"}
-
-[tool.poetry.group.test.dependencies]
-pytest = "^7.4.2"
-coverage = "^7.4.0"
-
-[tool.poetry.group.dev.dependencies]
-mypy = "^1.7.1"
-pytest-examples = "^0.0.10"
-
-
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.poetry.scripts]
-cellmap-schemas = 'cellmap_schemas.cli:cli'
+[project]
+name = "cellmap-schemas"
+dynamic = ["version"]
+description = 'Schemas for data used by the Cellmap project team at Janelia Research Campus.'
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+keywords = ["cellmap", "ngff", "n5", "zarr"]
+authors = [
+  { name = "Davis Vann Bennett", email = "davis.v.bennett@gmail.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+    "pydantic-zarr >= 0.7.0",
+    "s3fs >= 2023.10.0",
+    "rich >= 13.7.0"
+]
+
+[project.urls]
+Documentation = "https:www.janelia-cellmap.github.io/cellmap-schemas"
+Issues = "https://github.com/janelia-cellmap/cellmap-schemas/issues"
+Source = "https://github.com/janelia-cellmap/cellmap-schemas"
+
+[tool.hatch.version]
+path = "src/cellmap_schemas/__about__.py"
+
+[tool.hatch.envs.test]
+dependencies = [
+  "pytest",
+  "pytest-cov==5.0.0",
+  "pytest-examples == 0.0.10"
+]
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.9", "3.10", "3.11"]
+
+[tool.hatch.envs.test.scripts]
+run-coverage = "pytest --cov-config=pyproject.toml --cov=pkg --cov=tests"
+run = "run-coverage --no-cov"
+
+
+[tool.hatch.envs.docs]
+dependencies = [
+"mkdocs-material == 9.4.2",
+"mkdocstrings[python] == 0.23.0"
+]
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/cellmap_schemas tests}"
+
+[tool.coverage.run]
+source_pkgs = ["cellmap_schemas", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/cellmap_schemas/__about__.py",
+]
+
+[tool.coverage.paths]
+cellmap_schemas = ["src/cellmap_schemas", "*/cellmap-schemas/src/cellmap_schemas"]
+tests = ["tests", "*/cellmap-schemas/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
 
 [tool.ruff]
 line-length = 100

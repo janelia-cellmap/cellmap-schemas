@@ -9,6 +9,8 @@ in the [OME-NGFF](https://ngff.openmicroscopy.org/) specification.
 from __future__ import annotations
 from typing import Annotated, Any, Literal, Optional, Sequence, TYPE_CHECKING
 
+from cellmap_schemas.base import normalize_chunks
+
 if TYPE_CHECKING:
     from typing import Type
     from typing_extensions import Self
@@ -394,15 +396,18 @@ class Group(neuroglancer_n5.Group):
         compressor: Codec | None | Literal["auto"] = "auto"
             The compressor to use for the Zarr arrays.
         """
+
+        chunks = normalize_chunks(chunks, arrays)
+
         members = {
             path: Array.from_array(
                 array=array,
-                chunks=chunks,
+                chunks=chunk,
                 compressor=compressor,
                 dimension_separator="/",
                 attributes=ArrayMetadata.from_transform(transform),
             )
-            for path, array, transform in zip(paths, arrays, transforms)
+            for path, array, transform, chunk in zip(paths, arrays, transforms, chunks)
         }
 
         metadata = GroupMetadata.from_transforms(

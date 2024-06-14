@@ -2,13 +2,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from numcodecs import GZip, Zstd
 
+from cellmap_schemas.base import normalize_chunks
+
 if TYPE_CHECKING:
     from typing import Literal
 
 import numpy as np
 from pydantic import ValidationError
 import pytest
-from zarr.util import guess_chunks
 from cellmap_schemas.multiscale.neuroglancer_n5 import GroupMetadata, PixelResolution, Group
 
 
@@ -58,7 +59,14 @@ def test_group_metadata_wrong_scale_0(ndim: int):
 
 
 @pytest.mark.parametrize("dimension_order", ("C", "F"))
-@pytest.mark.parametrize("chunks", ("auto", ((2, 2, 2))))
+@pytest.mark.parametrize(
+    "chunks",
+    (
+        "auto",
+        (2, 2, 2),
+        ((1, 1, 1), (2, 2, 2), (3, 3, 3)),
+    ),
+)
 @pytest.mark.parametrize("compressor", (Zstd(3), GZip(-1)))
 def test_from_arrays(
     dimension_order: Literal["C", "F"],
@@ -91,14 +99,11 @@ def test_from_arrays(
     assert group.attributes.pixelResolution == PixelResolution(
         dimensions=scales[0][indexer], unit=units[indexer][0]
     )
+    chunks_expected = normalize_chunks(chunks, arrays)
+
     for idx in range(len(arrays)):
         obs = group.members[paths[idx]]
-        exp = arrays[idx]
-        if chunks == "auto":
-            chunks_expected = guess_chunks(exp.shape, exp.dtype.itemsize)
-        else:
-            chunks_expected = chunks
-        assert obs.chunks == chunks_expected
+        assert obs.chunks == chunks_expected[idx]
         assert obs.attributes.pixelResolution == PixelResolution(
             dimensions=scales[idx][indexer], unit=units[indexer][0]
         )

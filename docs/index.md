@@ -72,7 +72,7 @@ print(group_model.model_dump(exclude='attributes'))
                 'pixelResolution': {'dimensions': (10.0, 8.0), 'unit': 'nm'}
             },
             'shape': (2, 2),
-            'chunks': (2, 2),
+            'chunks': (4, 4),
             'dtype': '<i8',
             'fill_value': 0,
             'order': 'C',

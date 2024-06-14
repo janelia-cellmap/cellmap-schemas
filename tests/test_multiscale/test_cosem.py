@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from cellmap_schemas.base import normalize_chunks
+
 if TYPE_CHECKING:
     from typing import Literal
 
@@ -21,7 +23,6 @@ from cellmap_schemas.multiscale.cosem import (
     change_coordinates,
 )
 from cellmap_schemas.multiscale.neuroglancer_n5 import PixelResolution
-from zarr.util import guess_chunks
 
 
 @pytest.mark.parametrize("ndim", (2, 3, 4))
@@ -281,7 +282,7 @@ def test_multiscale_group_from_arrays(order: Literal["C", "F"], name: str | None
     }
 
     arrays = {"s0": np.zeros((10, 10, 10)), "s1": np.zeros((5, 5, 5))}
-
+    chunks_expected = normalize_chunks("auto", (arrays["s0"],))[0]
     groupMeta = GroupMetadata(
         axes=axes[reorder],
         scales=[[1, 1, 1], [2, 2, 2]],
@@ -294,7 +295,9 @@ def test_multiscale_group_from_arrays(order: Literal["C", "F"], name: str | None
         attributes=groupMeta,
         members={
             key: Array.from_array(
-                array=array, attributes=ArrayMetadata.from_transform(transform=transforms[key])
+                array=array,
+                chunks=chunks_expected,
+                attributes=ArrayMetadata.from_transform(transform=transforms[key]),
             )
             for key, array in arrays.items()
         },
@@ -409,7 +412,7 @@ def test_change_coordinates_3d(
 
 
 @pytest.mark.parametrize("dimension_order", ("C", "F"))
-@pytest.mark.parametrize("chunks", ("auto", ((2, 2, 2))))
+@pytest.mark.parametrize("chunks", ("auto", (2, 2, 2), ((1, 1, 1), (2, 2, 2), (3, 3, 3))))
 @pytest.mark.parametrize("compressor", (Zstd(3), GZip(-1)))
 def test_from_arrays(
     dimension_order: Literal["C", "F"],
@@ -441,14 +444,10 @@ def test_from_arrays(
     assert group.attributes.pixelResolution == PixelResolution(
         dimensions=scales[0][indexer], unit=units[indexer][0]
     )
+    chunks_expected = normalize_chunks(chunks, arrays)
     for idx in range(len(arrays)):
         obs = group.members[paths[idx]]
-        exp = arrays[idx]
-        if chunks == "auto":
-            chunks_expected = guess_chunks(exp.shape, exp.dtype.itemsize)
-        else:
-            chunks_expected = chunks
-        assert obs.chunks == chunks_expected
+        assert obs.chunks == chunks_expected[idx]
 
         assert obs.attributes.pixelResolution == PixelResolution(
             dimensions=scales[idx][indexer], unit=units[indexer][0]
