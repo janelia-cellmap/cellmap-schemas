@@ -282,7 +282,7 @@ def test_multiscale_group_from_arrays(order: Literal["C", "F"], name: str | None
     }
 
     arrays = {"s0": np.zeros((10, 10, 10)), "s1": np.zeros((5, 5, 5))}
-
+    chunks_expected = normalize_chunks("auto", (arrays["s0"],))[0]
     groupMeta = GroupMetadata(
         axes=axes[reorder],
         scales=[[1, 1, 1], [2, 2, 2]],
@@ -295,7 +295,9 @@ def test_multiscale_group_from_arrays(order: Literal["C", "F"], name: str | None
         attributes=groupMeta,
         members={
             key: Array.from_array(
-                array=array, attributes=ArrayMetadata.from_transform(transform=transforms[key])
+                array=array,
+                chunks=chunks_expected,
+                attributes=ArrayMetadata.from_transform(transform=transforms[key]),
             )
             for key, array in arrays.items()
         },

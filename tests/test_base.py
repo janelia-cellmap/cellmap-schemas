@@ -1,7 +1,11 @@
 from __future__ import annotations
-from cellmap_schemas.base import structure_equal
+import re
+from typing import Literal
 
-
+import numpy as np
+import pytest
+from cellmap_schemas.base import normalize_chunks, structure_equal
+from pydantic_zarr.v2 import auto_chunks
 from pydantic_zarr.v2 import ArraySpec, GroupSpec
 
 
@@ -33,3 +37,27 @@ def test_structure_equal():
 
     group_e = group_a.model_copy(deep=True, update={"members": {"array": array_b}})
     assert not structure_equal(group_a, group_e)
+
+
+@pytest.mark.parametrize("chunks", ("auto", (1, 2, 3), ((1, 2, 3), (1, 2, 3), (2, 3, 4))))
+def test_normalize_chunks(chunks: Literal["auto"] | tuple[int, ...] | tuple[tuple[int, ...], ...]):
+    data = (np.zeros((10, 10, 10)),) * 3
+    if chunks == "auto":
+        expected = (auto_chunks(data[0]),) * len(data)
+    elif isinstance(chunks[0], int):
+        expected = (chunks,) * len(data)
+    else:
+        expected = chunks
+    observed = normalize_chunks(chunks, data)
+    assert observed == expected
+
+
+def test_normalize_chunks_wrong_length():
+    arrays = (np.zeros((1, 1, 1)),) * 2
+    chunks = ((1, 1, 1),)
+    match = (
+        f"The number of chunks ({len(chunks)}) does not match the number of "
+        f"arrays ({len(arrays)})"
+    )
+    with pytest.raises(ValueError, match=re.escape(match)):
+        normalize_chunks(chunks, arrays)
