@@ -20,6 +20,7 @@ from typing import (
     TypeVar,
 )
 import numpy as np
+import numpy.typing as npt
 from typing_extensions import Self
 from pydantic_zarr.v2 import GroupSpec, ArraySpec
 from pydantic import BaseModel, model_validator, field_serializer
@@ -266,15 +267,15 @@ class AnnotationArrayAttrs(BaseModel, Generic[TName]):
     @classmethod
     def from_array(
         cls,
-        data: np.ndarray,
+        array: np.ndarray,
         class_name: TName,
         annotation_type: AnnotationType,
         complement_counts: None | dict[Possibility, int] | Literal["auto"],
     ) -> Self:
         if complement_counts == "auto":
-            num_unknown = sum(data == annotation_type.encoding["unknown"])
-            num_absent = sum(data == annotation_type.encoding["absent"])
-            num_present = data.size - (num_unknown + num_absent)
+            num_unknown = sum(array == annotation_type.encoding["unknown"])
+            num_absent = sum(array == annotation_type.encoding["absent"])
+            num_present = array.size - (num_unknown + num_absent)
 
             if isinstance(annotation_type, SemanticSegmentation):
                 complement_counts_parsed = {"unknown": num_unknown, "absent": num_absent}
@@ -391,6 +392,21 @@ class AnnotationArray(ArraySpec):
     """
 
     attributes: CellmapWrapper[AnnotationWrapper[AnnotationArrayAttrs]]
+
+    @classmethod
+    def from_array_infer_attrs(
+        cls,
+        array: npt.NDArray[Any],
+        class_name: TName,
+        annotation_type: AnnotationType,
+        complement_counts: None | dict[Possibility, int] | Literal["auto"],
+        **kwargs,
+    ) -> Self:
+        annotation_attrs = AnnotationArrayAttrs.from_array(
+            array, class_name, annotation_type, complement_counts
+        )
+        annotation_attrs_wrapped = wrap_attributes(annotation_attrs)
+        return super().from_array(array, attributes=annotation_attrs_wrapped, **kwargs)
 
 
 class AnnotationGroup(GroupSpec):
