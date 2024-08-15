@@ -273,17 +273,20 @@ class AnnotationArrayAttrs(BaseModel, Generic[TName]):
         complement_counts: None | dict[Possibility, int] | Literal["auto"],
     ) -> Self:
         if complement_counts == "auto":
-            num_unknown = sum(array == annotation_type.encoding["unknown"])
-            num_absent = sum(array == annotation_type.encoding["absent"])
+            num_unknown = (array == annotation_type.encoding["unknown"]).sum()
+            num_absent = (array == annotation_type.encoding["absent"]).sum()
             num_present = array.size - (num_unknown + num_absent)
 
             if isinstance(annotation_type, SemanticSegmentation):
-                complement_counts_parsed = {"unknown": num_unknown, "absent": num_absent}
-            elif isinstance(annotation_type, InstanceSegmentation):
                 complement_counts_parsed = {
                     "unknown": num_unknown,
                     "absent": num_absent,
                     "present": num_present,
+                }
+            elif isinstance(annotation_type, InstanceSegmentation):
+                complement_counts_parsed = {
+                    "unknown": num_unknown,
+                    "absent": num_absent,
                 }
         else:
             complement_counts_parsed = complement_counts
@@ -406,7 +409,7 @@ class AnnotationArray(ArraySpec):
             array, class_name, annotation_type, complement_counts
         )
         annotation_attrs_wrapped = wrap_attributes(annotation_attrs)
-        return super().from_array(array, attributes=annotation_attrs_wrapped, **kwargs)
+        return super().from_array(array, attributes=annotation_attrs_wrapped.model_dump(), **kwargs)
 
 
 class AnnotationGroup(GroupSpec):
