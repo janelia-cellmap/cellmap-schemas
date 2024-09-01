@@ -14,13 +14,14 @@ from enum import Enum
 from typing import (
     Any,
     Generic,
-    List,
     Literal,
     Mapping,
     Optional,
     TypeVar,
-    Union,
 )
+import numpy as np
+import numpy.typing as npt
+from typing_extensions import Self
 from pydantic_zarr.v2 import GroupSpec, ArraySpec
 from pydantic import BaseModel, model_validator, field_serializer
 import zarr
@@ -111,7 +112,7 @@ class Label(BaseModel, extra="forbid"):
 
 
 class LabelList(BaseModel, extra="forbid"):
-    labels: List[Label]
+    labels: list[Label]
     annotation_type: AnnotationType = "semantic"
 
 
@@ -191,7 +192,7 @@ class SemanticSegmentation(BaseModel, extra="forbid"):
     """
 
     type: Literal["semantic_segmentation"] = "semantic_segmentation"
-    encoding: dict[Union[Possibility, Literal["present"]], int]
+    encoding: dict[Literal[Possibility, Literal["present"]], int]
 
 
 class InstanceSegmentation(BaseModel, extra="forbid"):
@@ -221,7 +222,7 @@ class InstanceSegmentation(BaseModel, extra="forbid"):
     encoding: dict[Possibility, int]
 
 
-AnnotationType = Union[SemanticSegmentation, InstanceSegmentation]
+AnnotationType = SemanticSegmentation | InstanceSegmentation
 
 TName = TypeVar("TName", bound=str)
 
@@ -247,15 +248,54 @@ class AnnotationArrayAttrs(BaseModel, Generic[TName]):
 
     class_name: TName
     # a mapping from values to frequencies
-    complement_counts: Optional[dict[Possibility, int]]
+    complement_counts: dict[Possibility, int] | None
     # a mapping from class names to values
     # this is array metadata because labels might disappear during downsampling
     annotation_type: AnnotationType
 
     @model_validator(mode="after")
     def check_encoding(self: "AnnotationArrayAttrs"):
-        assert set(self.annotation_type.encoding.keys()).issuperset((self.complement_counts.keys()))
+        if (
+            isinstance(self.annotation_type, SemanticSegmentation)
+            and self.complement_counts is not None
+        ):
+            assert set(self.annotation_type.encoding.keys()).issuperset(
+                (self.complement_counts.keys())
+            )
         return self
+
+    @classmethod
+    def from_array(
+        cls,
+        array: np.ndarray,
+        class_name: TName,
+        annotation_type: AnnotationType,
+        complement_counts: None | dict[Possibility, int] | Literal["auto"],
+    ) -> Self:
+        if complement_counts == "auto":
+            num_unknown = (array == annotation_type.encoding["unknown"]).sum()
+            num_absent = (array == annotation_type.encoding["absent"]).sum()
+            num_present = array.size - (num_unknown + num_absent)
+
+            if isinstance(annotation_type, SemanticSegmentation):
+                complement_counts_parsed = {
+                    "unknown": num_unknown,
+                    "absent": num_absent,
+                    "present": num_present,
+                }
+            elif isinstance(annotation_type, InstanceSegmentation):
+                complement_counts_parsed = {
+                    "unknown": num_unknown,
+                    "absent": num_absent,
+                }
+        else:
+            complement_counts_parsed = complement_counts
+
+        return cls(
+            class_name=class_name,
+            annotation_type=annotation_type,
+            complement_counts=complement_counts_parsed,
+        )
 
 
 class AnnotationGroupAttrs(BaseModel, Generic[TName]):
@@ -327,11 +367,15 @@ class CropGroupAttrs(BaseModel, Generic[TName], validate_assignment=True):
     class_names: list[TName]
 
     @field_serializer("start_date")
-    def ser_end_date(value: date):
+    def ser_end_date(value: date) -> None | str:
+        if value is None:
+            return None
         return serialize_date(value)
 
     @field_serializer("end_date")
-    def ser_start_date(value: date):
+    def ser_start_date(value: date) -> None | str:
+        if value is None:
+            return None
         return serialize_date(value)
 
 
@@ -351,6 +395,21 @@ class AnnotationArray(ArraySpec):
     """
 
     attributes: CellmapWrapper[AnnotationWrapper[AnnotationArrayAttrs]]
+
+    @classmethod
+    def from_array_infer_attrs(
+        cls,
+        array: npt.NDArray[Any],
+        class_name: TName,
+        annotation_type: AnnotationType,
+        complement_counts: None | dict[Possibility, int] | Literal["auto"],
+        **kwargs,
+    ) -> Self:
+        annotation_attrs = AnnotationArrayAttrs.from_array(
+            array, class_name, annotation_type, complement_counts
+        )
+        annotation_attrs_wrapped = wrap_attributes(annotation_attrs)
+        return super().from_array(array, attributes=annotation_attrs_wrapped.model_dump(), **kwargs)
 
 
 class AnnotationGroup(GroupSpec):
