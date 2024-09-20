@@ -247,14 +247,24 @@ class AnnotationArrayAttrs(BaseModel, Generic[TName]):
 
     class_name: TName
     # a mapping from values to frequencies
-    complement_counts: Optional[dict[Possibility, int]]
+    complement_counts: dict[Possibility, int] | None
     # a mapping from class names to values
     # this is array metadata because labels might disappear during downsampling
     annotation_type: AnnotationType
 
     @model_validator(mode="after")
     def check_encoding(self: "AnnotationArrayAttrs"):
-        assert set(self.annotation_type.encoding.keys()).issuperset((self.complement_counts.keys()))
+        if isinstance(self.annotation_type, SemanticSegmentation):
+            if self.complement_counts is not None:
+                if not set(self.annotation_type.encoding.keys()).issuperset(
+                    (self.complement_counts.keys())
+                ):
+                    msg = (
+                        "The keys in annotation_type.encoding must be a superset of the keys in complement_counts."
+                        f"Got {tuple(self.annotation_type.encoding.keys())} for annotation_type.encoding, and"
+                        f"{tuple(self.complement_counts.keys())} for complement_counts."
+                    )
+                    raise ValueError(msg)
         return self
 
 
@@ -327,11 +337,15 @@ class CropGroupAttrs(BaseModel, Generic[TName], validate_assignment=True):
     class_names: list[TName]
 
     @field_serializer("start_date")
-    def ser_end_date(value: date):
+    def ser_end_date(value: date | None) -> None | str:
+        if value is None:
+            return None
         return serialize_date(value)
 
     @field_serializer("end_date")
-    def ser_start_date(value: date):
+    def ser_start_date(value: date | None) -> None | str:
+        if value is None:
+            return None
         return serialize_date(value)
 
 
