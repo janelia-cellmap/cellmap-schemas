@@ -181,7 +181,7 @@ class SemanticSegmentation(BaseModel, extra="forbid"):
 
     type: Literal["semantic_segmentation"]
         Must be the string 'semantic_segmentation'.
-    encoding: dict[Union[Possibility, Literal["present"]], int]
+    encoding: dict[SemanticPossibility, int]
         This dict represents the mapping from possibilities to numeric values. The keys
         must be strings in the set `{'unknown', 'absent', 'present'}`, and the values
         must be numeric values contained in the array described by this metadata.
@@ -280,24 +280,36 @@ class AnnotationArrayAttrs(BaseModel, Generic[TName]):
         if complement_counts == "auto":
             complement_counts_parsed: dict[SemanticPossibility, int] | dict[
                 InstancePossibility, int
-            ]
-            num_unknown = (array == annotation_type.encoding["unknown"]).sum()
-            num_absent = (array == annotation_type.encoding["absent"]).sum()
-            num_present = array.size - (num_unknown + num_absent)
+            ] = {}
+
+            num_unknown: int = 0
+            num_absent: int = 0
+            num_present: int = 0
+
+            if "unknown" in annotation_type.encoding:
+                num_unknown = (array == annotation_type.encoding["unknown"]).sum()
+
+            if "absent" in annotation_type.encoding:
+                num_absent = (array == annotation_type.encoding["absent"]).sum()
+
+            if "present" in annotation_type.encoding:
+                num_present = array.size - (num_unknown + num_absent)
 
             if isinstance(annotation_type, SemanticSegmentation):
-                complement_counts_parsed: dict[SemanticPossibility, int] = {
-                    "unknown": num_unknown,
-                    "absent": num_absent,
-                    "present": num_present,
-                }
+                if "unknown" in annotation_type.encoding:
+                    complement_counts_parsed["unknown"] = num_unknown
+                if "absent" in annotation_type.encoding:
+                    complement_counts_parsed["absent"] = num_absent
+                if "present" in annotation_type.encoding:
+                    complement_counts_parsed["present"] = num_present
+
             elif isinstance(annotation_type, InstanceSegmentation):
-                complement_counts_parsed: dict[InstancePossibility, int] = {
-                    "unknown": num_unknown,
-                    "absent": num_absent,
-                }
-        else:
-            complement_counts_parsed = complement_counts  # type: ignore
+                if "unknown" in annotation_type.encoding:
+                    complement_counts_parsed["unknown"] = num_unknown
+                if "absent" in annotation_type.encoding:
+                    complement_counts_parsed["absent"] = num_absent
+            else:
+                complement_counts_parsed = complement_counts  # type: ignore
 
         return cls(
             class_name=class_name,
