@@ -9,6 +9,9 @@ from cellmap_schemas.annotation import (
     AnnotationGroupAttrs,
     CropGroup,
     CropGroupAttrs,
+    InstancePossibility,
+    InstanceSegmentation,
+    SemanticPossibility,
     SemanticSegmentation,
     wrap_attributes,
 )
@@ -16,10 +19,23 @@ import numpy as np
 import zarr
 
 
-def test_cropgroup():
+@pytest.mark.parametrize(
+    "annotation_cls, encoding",
+    [
+        (SemanticSegmentation, {"absent": 0}),
+        (SemanticSegmentation, {"absent": 0, "present": 1}),
+        (SemanticSegmentation, {"absent": 0, "present": 1, "unknown": 3}),
+        (InstanceSegmentation, {"absent": 0}),
+        (InstanceSegmentation, {"absent": 0, "unknown": 3}),
+    ],
+)
+def test_cropgroup(
+    annotation_cls: type[SemanticSegmentation] | type[InstanceSegmentation],
+    encoding: dict[SemanticPossibility, int] | dict[InstancePossibility, int],
+):
     ClassNamesT = Literal["foo", "bar"]
-    class_names = ["foo", "bar"]
-    ann_type = SemanticSegmentation(encoding={"absent": 0})
+    class_names: list[Literal["foo", "bar"]] = ["foo", "bar"]
+    ann_type = annotation_cls(encoding=encoding)  # type: ignore
     arrays = [np.zeros(10) for class_name in class_names]
     crop_group_attrs = CropGroupAttrs[ClassNamesT](
         name="foo",
@@ -79,3 +95,24 @@ def test_cropgroup():
     )
     with pytest.raises(ValueError, match=match):
         CropGroup.from_zarr(stored)
+
+
+@pytest.mark.parametrize(
+    "annotation_cls, encoding",
+    [
+        (SemanticSegmentation, {"absent": 0}),
+        (SemanticSegmentation, {"absent": 0, "present": 1}),
+        (SemanticSegmentation, {"absent": 0, "present": 1, "unknown": 3}),
+        (InstanceSegmentation, {"absent": 0}),
+        (InstanceSegmentation, {"absent": 0, "unknown": 3}),
+    ],
+)
+def test_annotation_attrs_from_array(annotation_cls, encoding) -> None:
+    array = np.array([0, 1, 0, 3])
+    attrs = AnnotationArrayAttrs.from_array(
+        array,
+        class_name="foo",
+        annotation_type=annotation_cls(encoding=encoding),
+        complement_counts="auto",
+    )
+    assert attrs.complement_counts["absent"] == 2

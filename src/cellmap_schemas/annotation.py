@@ -167,7 +167,8 @@ classNamedict = {
     48: InstanceName(short="Peroxisome lumen", long="Peroxisome lumen"),
 }
 
-Possibility = Literal["unknown", "absent"]
+InstancePossibility = Literal["unknown", "absent"]
+SemanticPossibility = InstancePossibility | Literal["present"]
 
 
 class SemanticSegmentation(BaseModel, extra="forbid"):
@@ -180,7 +181,7 @@ class SemanticSegmentation(BaseModel, extra="forbid"):
 
     type: Literal["semantic_segmentation"]
         Must be the string 'semantic_segmentation'.
-    encoding: dict[Union[Possibility, Literal["present"]], int]
+    encoding: dict[SemanticPossibility, int]
         This dict represents the mapping from possibilities to numeric values. The keys
         must be strings in the set `{'unknown', 'absent', 'present'}`, and the values
         must be numeric values contained in the array described by this metadata.
@@ -192,7 +193,7 @@ class SemanticSegmentation(BaseModel, extra="forbid"):
     """
 
     type: Literal["semantic_segmentation"] = "semantic_segmentation"
-    encoding: dict[Literal[Possibility, Literal["present"]], int]
+    encoding: dict[SemanticPossibility, int]
 
 
 class InstanceSegmentation(BaseModel, extra="forbid"):
@@ -219,7 +220,7 @@ class InstanceSegmentation(BaseModel, extra="forbid"):
     """
 
     type: Literal["instance_segmentation"] = "instance_segmentation"
-    encoding: dict[Possibility, int]
+    encoding: dict[InstancePossibility, int]
 
 
 AnnotationType = SemanticSegmentation | InstanceSegmentation
@@ -236,7 +237,7 @@ class AnnotationArrayAttrs(BaseModel, Generic[TName]):
 
     class_name: str
         The name of the semantic class annotated in this array.
-    complement_counts: Optional[dict[Possibility, int]]
+    complement_counts: dict[Possibility, int] | None
         The frequency of 'absent' and / or 'missing' values in the array data.
         The total number of elements in the array that represent "positive" examples can
         be calculated from these counts -- take the number of elements in the array
@@ -248,20 +249,24 @@ class AnnotationArrayAttrs(BaseModel, Generic[TName]):
 
     class_name: TName
     # a mapping from values to frequencies
-    complement_counts: dict[Possibility, int] | None
+    complement_counts: dict[InstancePossibility, int] | dict[SemanticPossibility, int] | None
     # a mapping from class names to values
     # this is array metadata because labels might disappear during downsampling
     annotation_type: AnnotationType
 
     @model_validator(mode="after")
     def check_encoding(self: "AnnotationArrayAttrs"):
-        if (
-            isinstance(self.annotation_type, SemanticSegmentation)
-            and self.complement_counts is not None
-        ):
-            assert set(self.annotation_type.encoding.keys()).issuperset(
-                (self.complement_counts.keys())
-            )
+        if isinstance(self.annotation_type, SemanticSegmentation):
+            if self.complement_counts is not None:
+                if not set(self.annotation_type.encoding.keys()).issuperset(
+                    (self.complement_counts.keys())
+                ):
+                    msg = (
+                        "The keys in annotation_type.encoding must be a superset of the keys in complement_counts."
+                        f"Got {tuple(self.annotation_type.encoding.keys())} for annotation_type.encoding, and"
+                        f"{tuple(self.complement_counts.keys())} for complement_counts."
+                    )
+                    raise ValueError(msg)
         return self
 
     @classmethod
@@ -270,26 +275,41 @@ class AnnotationArrayAttrs(BaseModel, Generic[TName]):
         array: np.ndarray,
         class_name: TName,
         annotation_type: AnnotationType,
-        complement_counts: None | dict[Possibility, int] | Literal["auto"],
+        complement_counts: None | dict[InstancePossibility, int] | Literal["auto"],
     ) -> Self:
         if complement_counts == "auto":
-            num_unknown = (array == annotation_type.encoding["unknown"]).sum()
-            num_absent = (array == annotation_type.encoding["absent"]).sum()
-            num_present = array.size - (num_unknown + num_absent)
+            complement_counts_parsed: dict[SemanticPossibility, int] | dict[
+                InstancePossibility, int
+            ] = {}
+
+            num_unknown: int = 0
+            num_absent: int = 0
+            num_present: int = 0
+
+            if "unknown" in annotation_type.encoding:
+                num_unknown = (array == annotation_type.encoding["unknown"]).sum()
+
+            if "absent" in annotation_type.encoding:
+                num_absent = (array == annotation_type.encoding["absent"]).sum()
+
+            if "present" in annotation_type.encoding:
+                num_present = array.size - (num_unknown + num_absent)
 
             if isinstance(annotation_type, SemanticSegmentation):
-                complement_counts_parsed = {
-                    "unknown": num_unknown,
-                    "absent": num_absent,
-                    "present": num_present,
-                }
+                if "unknown" in annotation_type.encoding:
+                    complement_counts_parsed["unknown"] = num_unknown
+                if "absent" in annotation_type.encoding:
+                    complement_counts_parsed["absent"] = num_absent
+                if "present" in annotation_type.encoding:
+                    complement_counts_parsed["present"] = num_present
+
             elif isinstance(annotation_type, InstanceSegmentation):
-                complement_counts_parsed = {
-                    "unknown": num_unknown,
-                    "absent": num_absent,
-                }
-        else:
-            complement_counts_parsed = complement_counts
+                if "unknown" in annotation_type.encoding:
+                    complement_counts_parsed["unknown"] = num_unknown
+                if "absent" in annotation_type.encoding:
+                    complement_counts_parsed["absent"] = num_absent
+            else:
+                complement_counts_parsed = complement_counts  # type: ignore
 
         return cls(
             class_name=class_name,
@@ -367,13 +387,13 @@ class CropGroupAttrs(BaseModel, Generic[TName], validate_assignment=True):
     class_names: list[TName]
 
     @field_serializer("start_date")
-    def ser_end_date(value: date) -> None | str:
+    def ser_end_date(value: date | None) -> None | str:
         if value is None:
             return None
         return serialize_date(value)
 
     @field_serializer("end_date")
-    def ser_start_date(value: date) -> None | str:
+    def ser_start_date(value: date | None) -> None | str:
         if value is None:
             return None
         return serialize_date(value)
@@ -402,7 +422,7 @@ class AnnotationArray(ArraySpec):
         array: npt.NDArray[Any],
         class_name: TName,
         annotation_type: AnnotationType,
-        complement_counts: None | dict[Possibility, int] | Literal["auto"],
+        complement_counts: None | dict[InstancePossibility, int] | Literal["auto"],
         **kwargs,
     ) -> Self:
         annotation_attrs = AnnotationArrayAttrs.from_array(
