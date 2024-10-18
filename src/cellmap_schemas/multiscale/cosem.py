@@ -7,7 +7,7 @@ Note that the hierarchy convention modeled here will likely be superceded by con
 in the [OME-NGFF](https://ngff.openmicroscopy.org/) specification.
 """
 from __future__ import annotations
-from typing import Annotated, Any, Literal, Optional, Sequence, TYPE_CHECKING
+from typing import Tuple, List, Annotated, Any, Literal, Optional, Sequence, TYPE_CHECKING
 
 from cellmap_schemas.base import normalize_chunks
 
@@ -19,6 +19,7 @@ import numpy as np
 from numcodecs.abc import Codec
 from numpy.typing import NDArray
 from pydantic_zarr.v2 import GroupSpec, ArraySpec
+from xarray import DataArray
 from pydantic import BaseModel, Field, model_validator
 from cellmap_schemas.multiscale import neuroglancer_n5
 from cellmap_schemas.multiscale.neuroglancer_n5 import PixelResolution
@@ -80,6 +81,60 @@ class STTransform(BaseModel):
                 f"len(scale) = {len(self.scale)}."
             )
         return self
+
+    @classmethod
+    def from_xarray(cls, array: DataArray, reverse_axes: bool = False) -> "STTransform":
+        """
+        Generate a spatial transform from a DataArray.
+
+        Parameters
+        ----------
+
+        array: xarray.DataArray
+            A DataArray with coordinates that can be expressed as scaling + translation
+            applied to a regular grid.
+        reverse_axes: boolean, default=False
+            If `True`, the order of the `axes` in the spatial transform will
+            be reversed relative to the order of the dimensions of `array`, and the
+            `order` field of the resulting STTransform will be set to "F". This is
+            designed for compatibility with N5 tools.
+
+        Returns
+        -------
+
+        STTransform
+            An instance of STTransform that is consistent with the coordinates defined
+            on the input DataArray.
+        """
+
+        orderer = slice(None)
+        output_order = "C"
+        if reverse_axes:
+            orderer = slice(-1, None, -1)
+            output_order = "F"
+
+        axes = [str(d) for d in array.dims[orderer]]
+        # default unit is m
+        units = [array.coords[ax].attrs.get("units", "m") for ax in axes]
+        translate = [float(array.coords[ax][0]) for ax in axes]
+        scale = []
+        for ax in axes:
+            if len(array.coords[ax]) > 1:
+                scale_estimate = abs(
+                    float(array.coords[ax][1]) - float(array.coords[ax][0])
+                )
+            else:
+                raise ValueError(
+                    f"""
+                    Cannot infer scale parameter along dimension {ax}
+                    with length {len(array.coords[ax])}
+                    """
+                )
+            scale.append(scale_estimate)
+
+        return cls(
+            axes=axes, units=units, translate=translate, scale=scale, order=output_order
+        )
 
 
 class ArrayMetadata(BaseModel):
